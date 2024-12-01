@@ -1,0 +1,34 @@
+# Source
+src/
+
+# Tests
+__tests__/
+*.test.*
+jest.config.*
+
+# Examples
+examples/
+
+# Config files
+.eslintrc
+.prettierrc
+rollup.config.*
+tsconfig.*
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Misc
+.DS_Store
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
