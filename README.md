@@ -5,6 +5,8 @@ A lightweight and intuitive state management library for React, leveraging the p
 [![npm version](https://badge.fury.io/js/h-state.svg)](https://badge.fury.io/js/h-state)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+🎮 **[Live Demo & Examples](https://hidayetcanozcan.github.io/h-state)**
+
 ## Features
 
 - 🪶 **Lightweight**: Tiny bundle size, zero dependencies
@@ -51,7 +53,13 @@ function Counter() {
 
 ## Examples
 
-Check out our [live demo](https://HidayetCanOzcan.github.io/h-state) for more examples and use cases.
+Our [live demo](https://hidayetcanozcan.github.io/h-state) includes several examples:
+
+- 📊 Basic Counter
+- 👤 User Profile Management
+- ✅ Todo List
+- 🔄 Nested State Updates
+- 📝 Form Handling
 
 ### Direct Property Updates
 
@@ -89,6 +97,12 @@ Creates a new store with the given initial state and methods.
   - `initialState`: An object containing your state and methods
 - **Returns**
   - A proxy object that triggers React re-renders on changes
+
+## Links
+
+- 📦 [NPM Package](https://www.npmjs.com/package/h-state)
+- 💻 [GitHub Repository](https://github.com/HidayetCanOzcan/h-state)
+- 🎮 [Live Demo](https://hidayetcanozcan.github.io/h-state)
 
 ## Contributing
 
