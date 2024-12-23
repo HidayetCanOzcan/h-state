@@ -1,6 +1,6 @@
 {
   "name": "h-state",
-  "version": "1.0.0-beta.2",
+  "version": "1.0.0-beta.3",
   "description": "A lightweight and intuitive state management library for React, using Proxy for seamless reactivity with zero dependencies",
   "type": "module",
   "main": "dist/index.js",
