@@ -38,12 +38,16 @@ export function createStore<
     return version;
   };
 
+  const getServerSnapshot = () => {
+    return version;
+  };
+
   reactiveStore.subscribe(() => {
     version++;
   });
 
   function useStore() {
-    useSyncExternalStore(subscribe, getSnapshot);
+    useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
     return store;
   }
 
