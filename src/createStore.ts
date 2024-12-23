@@ -1,4 +1,4 @@
-import React from 'react';
+import { useSyncExternalStore } from 'react';
 import { ReactiveStore } from './ReactiveStore';
 import { StoreType, MethodCreators } from './types';
 
@@ -15,6 +15,7 @@ export function createStore<
 } {
   const reactiveStore = new ReactiveStore(initial);
   const store = reactiveStore.getProxy() as StoreType<T, M>;
+  let version = 0;
 
   (store as StoreType<T, M> & { merge: (partial: Partial<T>) => void }).merge = (
     partial: Partial<T>
@@ -29,21 +30,22 @@ export function createStore<
     Object.assign(store, { [methodName]: method });
   });
 
-  function useStore() {
-    const [, setCounter] = React.useState(0);
-
-    React.useEffect(() => {
-      return reactiveStore.subscribe(() => {
-        setCounter((counter: number) => counter + 1);
-      });
-    }, []);
-
-    return store;
-  }
-
   const subscribe = (callback: () => void) => {
     return reactiveStore.subscribe(callback);
   };
+
+  const getSnapshot = () => {
+    return version;
+  };
+
+  reactiveStore.subscribe(() => {
+    version++;
+  });
+
+  function useStore() {
+    useSyncExternalStore(subscribe, getSnapshot);
+    return store;
+  }
 
   return { Store: store, useStore, subscribe };
 }

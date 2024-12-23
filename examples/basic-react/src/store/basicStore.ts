@@ -1,4 +1,4 @@
-import { createStore } from 'h-state';
+import { createStore } from '../../../../src';
 
 interface AppState extends Record<string, unknown> {
   count: number;
@@ -7,28 +7,28 @@ interface AppState extends Record<string, unknown> {
     age: number;
   };
   todos: string[];
+  newTodo: string;
 }
 
 interface AppMethods extends Record<string, unknown> {
   increment: () => void;
   decrement: () => void;
-  addTodo: (todo: string) => void;
+  addNewTodo: () => void;
   removeTodo: (index: number) => void;
   userInfo: string;
   todoCount: number;
 }
 
 export const { useStore } = createStore<AppState, AppMethods>(
-  // Initial state
   {
     count: 0,
     user: {
       name: 'John Doe',
-      age: 25
+      age: 25,
     },
-    todos: ['Learn H-State', 'Build awesome apps']
+    todos: ['Learn H-State', 'Build awesome apps'],
+    newTodo: '',
   },
-  // Methods
   {
     increment: (store) => () => {
       store.count++;
@@ -36,13 +36,14 @@ export const { useStore } = createStore<AppState, AppMethods>(
     decrement: (store) => () => {
       store.count--;
     },
-    addTodo: (store) => (todo: string) => {
-      store.todos = [...store.todos, todo];
+    addNewTodo: (store) => () => {
+      store.todos = [...store.todos, store.newTodo];
+      store.newTodo = '';
     },
     removeTodo: (store) => (index: number) => {
       store.todos = store.todos.filter((_, i) => i !== index);
     },
     userInfo: (store) => `${store.user.name} (${store.user.age} years)`,
-    todoCount: (store) => store.todos.length
+    todoCount: (store) => store.todos.length,
   }
 );

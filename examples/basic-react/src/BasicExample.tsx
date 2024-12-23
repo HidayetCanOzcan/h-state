@@ -1,11 +1,10 @@
-import { useState } from 'react';
 import './styles.css';
-import {useStore} from './store/basicStore';
+import { useStore } from './store/basicStore';
+import { PerformanceTest } from './components/PerformanceTest';
 
 function BasicExample() {
   const store = useStore();
-  const [newTodo, setNewTodo] = useState('');
-  
+
   return (
     <div className="main-container">
       <div className="content-wrapper">
@@ -19,11 +18,17 @@ function BasicExample() {
         <div className="example-container">
           <section className="example-section">
             <h2 className="section-title">🔢 Counter Example</h2>
-            <p className="section-description">Simple counter showing H-State&apos;s basic state management</p>
+            <p className="section-description">
+              Simple counter showing H-State&apos;s basic state management
+            </p>
             <div className="counter-container">
-              <button onClick={store.decrement} className="btn-decrement">-</button>
+              <button onClick={store.decrement} className="btn-decrement">
+                -
+              </button>
               <span className="counter-value">Count: {store.count}</span>
-              <button onClick={store.increment} className="btn-increment">+</button>
+              <button onClick={store.increment} className="btn-increment">
+                +
+              </button>
             </div>
           </section>
 
@@ -47,7 +52,9 @@ const store = createStore({
         <div className="example-container">
           <section className="example-section">
             <h2 className="section-title">👤 User Example</h2>
-            <p className="section-description">Demonstrates H-State&apos;s reactive state management</p>
+            <p className="section-description">
+              Demonstrates H-State&apos;s reactive state management
+            </p>
             <div className="form-group">
               <label className="form-label">Name: </label>
               <input
@@ -102,16 +109,15 @@ const store = createStore({
             <div className="todo-form">
               <input
                 type="text"
-                value={newTodo}
-                onChange={(e) => setNewTodo(e.target.value)}
+                value={store.newTodo}
+                onChange={(e) => (store.newTodo = e.target.value)}
                 placeholder="Add a new todo..."
                 className="todo-input"
               />
               <button
                 onClick={() => {
-                  if (newTodo.trim()) {
-                    store.addTodo(newTodo);
-                    setNewTodo('');
+                  if (store.newTodo.trim()) {
+                    store.addNewTodo();
                   }
                 }}
                 className="add-button"
@@ -123,10 +129,7 @@ const store = createStore({
               {store.todos.map((todo, index) => (
                 <div key={index} className="todo-item">
                   <span>{todo}</span>
-                  <button
-                    onClick={() => store.removeTodo(index)}
-                    className="todo-delete-btn"
-                  >
+                  <button onClick={() => store.removeTodo(index)} className="todo-delete-btn">
                     Delete
                   </button>
                 </div>
@@ -149,6 +152,9 @@ const store = createStore({
             </pre>
           </div>
         </div>
+
+        {/* Performance Test */}
+        <PerformanceTest />
       </div>
     </div>
   );

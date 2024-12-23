@@ -28,7 +28,9 @@
     "deploy:example": "cd examples/basic-react && npm run deploy",
     "publish:patch": "npm version patch && npm publish",
     "publish:minor": "npm version minor && npm publish",
-    "publish:major": "npm version major && npm publish"
+    "publish:major": "npm version major && npm publish",
+    "release:beta": "node scripts/release-beta.js",
+    "publish:beta": "npm run test && npm run build && npm publish --tag beta"
   },
   "repository": {
     "type": "git",

@@ -4,9 +4,11 @@
   "private": true,
   "homepage": "https://HidayetCanOzcan.github.io/h-state",
   "dependencies": {
+    "@hookstate/core": "^4.0.1",
     "h-state": "file:../../",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "zustand": "^5.0.2"
   },
   "devDependencies": {
     "@types/react": "^18.0.0",
