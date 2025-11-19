@@ -1,6 +1,6 @@
 import './styles.css';
 import { useStore } from './store/basicStore';
-import { PerformanceTest } from './components/PerformanceTest';
+// import { PerformanceTest } from './components/PerformanceTest';
 
 function BasicExample() {
   const store = useStore();
@@ -154,7 +154,7 @@ const store = createStore({
         </div>
 
         {/* Performance Test */}
-        <PerformanceTest />
+        {/* <PerformanceTest /> */}
       </div>
     </div>
   );
