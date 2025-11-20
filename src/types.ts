@@ -12,10 +12,22 @@ export type StoreType<
 	M & {
 		$update: () => void; 
 		$merge: (partial: Partial<T>) => void;
+		$persist: () => void;
+		$clearPersist: () => void;
 	};
+
 export type MethodCreators<
 	T extends Record<string, unknown>,
 	M extends Record<string, unknown>,
 > = {
 	[K in keyof M]: (store: StoreType<T, M>) => M[K];
 };
+
+export interface PersistOptions {
+	enabled?: boolean;
+	key?: string;
+	debounce?: number;
+	serialize?: (state: Record<string, unknown>) => string;
+	deserialize?: (data: string) => Record<string, unknown>;
+	onError?: (error: Error) => void;
+}

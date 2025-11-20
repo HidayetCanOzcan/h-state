@@ -1,5 +1,5 @@
 import React from "react";
-import { Listener, MethodCreators, ReactiveState, STATE_ID, StoreType } from "./types";
+import { Listener, MethodCreators, PersistOptions, ReactiveState, STATE_ID, StoreType } from "./types";
 
 class Signal<T> {
 	private value: T;
@@ -167,20 +167,128 @@ function makeReactive<T>(
 	return reactiveObj;
 }
 
+// ============================================================================
+// Persistence Utilities
+// ============================================================================
+
+// Check if localStorage is available (SSR guard)
+function isLocalStorageAvailable(): boolean {
+	try {
+		return typeof window !== "undefined" && window.localStorage !== null;
+	} catch {
+		return false;
+	}
+}
+
+// Generate storage key from state object
+let storeCounter = 0;
+function generateStorageKey(prefix = "h-state"): string {
+	return `${prefix}-store-${++storeCounter}`;
+}
+
+// Default serializer
+function defaultSerialize(state: Record<string, unknown>): string {
+	return JSON.stringify(state);
+}
+
+// Default deserializer
+function defaultDeserialize(data: string): Record<string, unknown> {
+	return JSON.parse(data) as Record<string, unknown>;
+}
+
+// ============================================================================
+// Store Creator with Persistence
+// ============================================================================
+
 export function createStore<
 	T extends Record<string, unknown>,
 	M extends Record<string, unknown>,
 >(
 	initial: T,
 	methodCreators: MethodCreators<T, M>,
+	persistOptions?: PersistOptions,
 ): {
 	useStore: () => StoreType<T, M>;
 } {
+	// Parse persistence options with defaults
+	const persist = {
+		enabled: persistOptions?.enabled ?? false,
+		key: persistOptions?.key ?? generateStorageKey(),
+		debounce: persistOptions?.debounce ?? 0,
+		serialize: persistOptions?.serialize ?? defaultSerialize,
+		deserialize: persistOptions?.deserialize ?? defaultDeserialize,
+		onError: persistOptions?.onError ?? ((error: Error) => console.error("H-State Persist Error:", error)),
+	};
+
+	// Try to restore from localStorage
+	let restoredState: Partial<T> | null = null;
+	if (persist.enabled && isLocalStorageAvailable()) {
+		try {
+			const stored = localStorage.getItem(persist.key);
+			if (stored) {
+				restoredState = persist.deserialize(stored) as Partial<T>;
+			}
+		} catch (error) {
+			persist.onError(error as Error);
+		}
+	}
+
+	// Merge initial state with restored state
+	const mergedInitial = restoredState ? { ...initial, ...restoredState } : initial;
 	
-	const internalState = { ...initial, [STATE_ID]: 0 } as ReactiveState<T>;
+	const internalState = { ...mergedInitial, [STATE_ID]: 0 } as ReactiveState<T>;
 	const signal = new Signal<number>(0);
 	
 	const store = {} as StoreType<T, M>;
+
+	// Subscribe to signal for automatic persistence
+	if (persist.enabled) {
+		signal.subscribe(() => {
+			schedulePersist();
+		});
+	}
+
+	// Debounce timer for persistence
+	let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+	// Save state to localStorage
+	const saveToStorage = () => {
+		if (!persist.enabled || !isLocalStorageAvailable()) {
+			return;
+		}
+
+		try {
+			// Extract only state properties (exclude methods and symbols)
+			const stateToSave: Record<string, unknown> = {};
+			for (const key in initial) {
+				if (Object.hasOwn(initial, key)) {
+					stateToSave[key] = (internalState as Record<string, unknown>)[key];
+				}
+			}
+
+			const serialized = persist.serialize(stateToSave);
+			localStorage.setItem(persist.key, serialized);
+		} catch (error) {
+			persist.onError(error as Error);
+		}
+	};
+
+	// Debounced save
+	const schedulePersist = () => {
+		if (!persist.enabled) {
+			return;
+		}
+
+		if (persistTimer) {
+			clearTimeout(persistTimer);
+		}
+
+		if (persist.debounce > 0) {
+			persistTimer = setTimeout(saveToStorage, persist.debounce);
+		} else {
+			saveToStorage();
+		}
+	};
 
 	for (const key in initial) {
 		if (Object.hasOwn(initial, key)) {
@@ -249,6 +357,21 @@ export function createStore<
 			}
 		});
 	};
+
+	// Persistence methods
+	(store as StoreType<T, M>).$persist = () => {
+		saveToStorage();
+	};
+
+	(store as StoreType<T, M>).$clearPersist = () => {
+		if (isLocalStorageAvailable()) {
+			try {
+				localStorage.removeItem(persist.key);
+			} catch (error) {
+				persist.onError(error as Error);
+			}
+		}
+	};
 	
 	for (const methodName of Object.keys(methodCreators)) {
 		const creator = methodCreators[methodName];
@@ -274,4 +397,7 @@ export function createStore<
 
 	return { useStore };
 }
+
+// Re-export types for convenience
+export type { PersistOptions, StoreType, MethodCreators } from "./types";
 

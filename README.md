@@ -7,8 +7,9 @@ A lightweight and intuitive state management library for React with deep nested 
 
 🎮 **[Live Demo & Examples](https://hidayetcanozcan.github.io/h-state)**
 
-## What's New in v2.0.0 🎉
+## What's New in v2.1.0 🎉
 
+- 💾 **localStorage Persistence**: Automatic state persistence with customizable options
 - ✨ **Deep Nested Reactivity**: Unlimited depth object reactivity with no Proxy overhead
 - ⚡ **Batch Updates**: Group multiple state changes into single re-render
 - 🚀 **Performance Optimized**: WeakMap caching and shallow comparison
@@ -37,23 +38,40 @@ yarn add h-state
 ```typescript
 import { createStore } from 'h-state';
 
-// Create your store
-const store = createStore({
-  count: 0,
-  increment: (store) => {
-    store.count++;
-  },
-  decrement: (store) => {
-    store.count--;
-  }
-});
+// 1. Define your state structure
+interface CounterState {
+  count: number;
+}
 
-// Use in your React components
+// 2. Define your methods
+interface CounterMethods {
+  increment: () => void;
+  decrement: () => void;
+}
+
+// 3. Create your store
+const { useStore } = createStore<CounterState, CounterMethods>(
+  {
+    count: 0,
+  },
+  {
+    increment: (store) => () => {
+      store.count++;
+    },
+    decrement: (store) => () => {
+      store.count--;
+    },
+  }
+);
+
+// 4. Use in your React components
 function Counter() {
+  const store = useStore();
+  
   return (
     <div>
       <button onClick={store.decrement}>-</button>
-      <span>{store.count}</span>
+      <span>Count: {store.count}</span>
       <button onClick={store.increment}>+</button>
     </div>
   );
@@ -65,10 +83,123 @@ function Counter() {
 Our [live demo](https://hidayetcanozcan.github.io/h-state) includes several examples:
 
 - 📊 Basic Counter
-- 👤 User Profile Management
+- 👤 User Profile Management  
 - ✅ Todo List
 - 🔄 Nested State Updates
 - 📝 Form Handling
+- 💾 localStorage Persistence
+
+### Complete Todo List Example
+
+```typescript
+import { createStore } from 'h-state';
+
+// Define types
+interface TodoState {
+  todos: string[];
+  newTodo: string;
+}
+
+interface TodoMethods {
+  addTodo: () => void;
+  removeTodo: (index: number) => void;
+}
+
+// Create store
+const { useStore } = createStore<TodoState, TodoMethods>(
+  {
+    todos: ['Learn H-State', 'Build awesome apps'],
+    newTodo: '',
+  },
+  {
+    addTodo: (store) => () => {
+      if (store.newTodo.trim()) {
+        store.todos = [...store.todos, store.newTodo];
+        store.newTodo = '';
+      }
+    },
+    removeTodo: (store) => (index: number) => {
+      store.todos = store.todos.filter((_, i) => i !== index);
+    },
+  }
+);
+
+// Use in component
+function TodoList() {
+  const store = useStore();
+
+  return (
+    <div>
+      <input
+        type="text"
+        value={store.newTodo}
+        onChange={(e) => (store.newTodo = e.target.value)}
+        placeholder="Add a new todo..."
+      />
+      <button onClick={store.addTodo}>Add</button>
+
+      <ul>
+        {store.todos.map((todo, index) => (
+          <li key={index}>
+            {todo}
+            <button onClick={() => store.removeTodo(index)}>Delete</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+### User Profile with Nested State
+
+```typescript
+import { createStore } from 'h-state';
+
+interface UserState {
+  user: {
+    name: string;
+    age: number;
+  };
+}
+
+interface UserMethods {}
+
+const { useStore } = createStore<UserState, UserMethods>(
+  {
+    user: {
+      name: 'John Doe',
+      age: 25,
+    },
+  },
+  {}
+);
+
+function UserProfile() {
+  const store = useStore();
+
+  return (
+    <div>
+      <input
+        type="text"
+        value={store.user.name}
+        onChange={(e) => {
+          // Deep reactivity - just update nested property!
+          store.user.name = e.target.value;
+        }}
+      />
+      <input
+        type="number"
+        value={store.user.age}
+        onChange={(e) => {
+          store.user.age = parseInt(e.target.value);
+        }}
+      />
+      <p>User: {store.user.name}, Age: {store.user.age}</p>
+    </div>
+  );
+}
+```
 
 ### Deep Nested Reactivity (v2.0+)
 
@@ -102,6 +233,103 @@ function Component() {
   store.user.profile.settings.theme = 'dark';        // ✅ Reactive
   
   return <div>{store.user.profile.settings.theme}</div>;
+}
+```
+
+### localStorage Persistence (v2.1+) 💾
+
+```typescript
+import { createStore } from 'h-state';
+
+interface AppState {
+  count: number;
+  user: {
+    name: string;
+  };
+}
+
+interface AppMethods {
+  increment: () => void;
+}
+
+// Persisted store - automatically saved to localStorage!
+const { useStore } = createStore<AppState, AppMethods>(
+  {
+    count: 0,
+    user: { name: 'John' },
+  },
+  {
+    increment: (store) => () => {
+      store.count++;
+    },
+  },
+  {
+    enabled: true,              // Enable persistence
+    key: 'my-app-state',        // localStorage key
+    debounce: 300,              // Save after 300ms of inactivity
+  }
+);
+
+function App() {
+  const store = useStore();
+
+  return (
+    <div>
+      <p>Count: {store.count}</p>
+      <button onClick={store.increment}>+</button>
+      
+      <input
+        value={store.user.name}
+        onChange={(e) => store.user.name = e.target.value}
+      />
+      
+      {/* Manual controls */}
+      <button onClick={() => store.$persist()}>Save Now</button>
+      <button onClick={() => store.$clearPersist()}>Clear Storage</button>
+    </div>
+  );
+}
+
+// Try it: Make changes, reload the page - your state persists! ✨
+```
+
+### Compare: Persisted vs Non-Persisted
+
+```typescript
+// Non-persisted (default)
+const { useStore: useRegularStore } = createStore(
+  { count: 0 },
+  {}
+);
+
+// Persisted
+const { useStore: usePersistedStore } = createStore(
+  { count: 0 },
+  {},
+  { enabled: true, key: 'persisted-count' }
+);
+
+function Comparison() {
+  const regular = useRegularStore();
+  const persisted = usePersistedStore();
+
+  return (
+    <div>
+      <div>
+        <h3>❌ Regular (Lost on reload)</h3>
+        <button onClick={() => regular.count++}>
+          Count: {regular.count}
+        </button>
+      </div>
+
+      <div>
+        <h3>✅ Persisted (Saved to localStorage)</h3>
+        <button onClick={() => persisted.count++}>
+          Count: {persisted.count}
+        </button>
+      </div>
+    </div>
+  );
 }
 ```
 
@@ -150,20 +378,23 @@ function Component() {
 
 ## API Reference
 
-### createStore(initialState, methods)
+### createStore(initialState, methods, persistOptions?)
 
 Creates a new store with reactive state and methods.
 
 ```typescript
 function createStore<T, M>(
   initialState: T,
-  methods: MethodCreators<T, M>
+  methods: MethodCreators<T, M>,
+  persistOptions?: PersistOptions
 ): { useStore: () => StoreType<T, M> }
 ```
 
 **Parameters:**
-- `initialState`: Object containing initial state properties
-- `methods`: Object with method creators that receive store as first parameter
+
+1. **`initialState`**: `T` - Object containing initial state properties
+2. **`methods`**: `MethodCreators<T, M>` - Object with method creators that receive store as first parameter
+3. **`persistOptions`** (optional): `PersistOptions` - localStorage persistence configuration
 
 **Returns:**
 - `{ useStore }`: React hook to access the store
@@ -176,6 +407,41 @@ const { useStore } = createStore(
     increment: (store) => () => {         // Method creator
       store.count++;
     }
+  },
+  {                                       // Persistence options (optional)
+    enabled: true,
+    key: 'my-app-count'
+  }
+);
+```
+
+### PersistOptions
+
+Configuration for localStorage persistence:
+
+```typescript
+interface PersistOptions {
+  enabled?: boolean;        // Enable persistence (default: false)
+  key?: string;            // localStorage key (auto-generated if not provided)
+  debounce?: number;       // Debounce save in ms (default: 0 - immediate)
+  serialize?: (state) => string;      // Custom serializer (default: JSON.stringify)
+  deserialize?: (data) => object;     // Custom deserializer (default: JSON.parse)
+  onError?: (error: Error) => void;   // Error handler (default: console.error)
+}
+```
+
+**Example with all options:**
+```typescript
+const { useStore } = createStore(
+  { data: [] },
+  {},
+  {
+    enabled: true,
+    key: 'my-custom-key',
+    debounce: 500,
+    serialize: (state) => JSON.stringify(state),
+    deserialize: (data) => JSON.parse(data),
+    onError: (error) => console.error('Persist error:', error)
   }
 );
 ```
@@ -207,8 +473,37 @@ batch(() => {
 
 Every store instance includes:
 
-- `$merge(partial)`: Batch update multiple properties
-- `$update()`: Manually trigger re-render
+- **`$merge(partial)`**: Batch update multiple properties
+- **`$update()`**: Manually trigger re-render  
+- **`$persist()`**: Force immediate save to localStorage (if persistence enabled)
+- **`$clearPersist()`**: Clear persisted data from localStorage
+
+**Example:**
+```typescript
+const { useStore } = createStore(
+  { count: 0, name: '' },
+  {},
+  { enabled: true, key: 'my-state' }
+);
+
+function Component() {
+  const store = useStore();
+  
+  // Batch update
+  store.$merge({ count: 5, name: 'John' });
+  
+  // Force save immediately (bypasses debounce)
+  store.$persist();
+  
+  // Clear persisted data
+  const handleReset = () => {
+    store.$clearPersist();
+    window.location.reload(); // Reload to show initial state
+  };
+  
+  return <button onClick={handleReset}>Reset & Reload</button>;
+}
+```
 
 ## Performance
 
@@ -258,22 +553,65 @@ store.age = 25;       // Re-render 2
 store.email = 'x';    // Re-render 3
 ```
 
-## Migration from v1.x
+## Migration Guide
 
-V2.0 maintains backward compatibility but adds new features:
+### From v1.x to v2.x
+
+V2.x maintains backward compatibility but adds powerful new features:
 
 ```typescript
 // v1.x - Still works!
 store.user = { ...store.user, name: 'John' };
 
-// v2.0 - Now also works!
-store.user.name = 'John';  // Deep reactivity!
+// v2.0+ - Deep reactivity
+store.user.name = 'John';  // Just works! ✨
 
-// v2.0 - New batch API
+// v2.0+ - Batch updates
 batch(() => {
   store.count = 5;
   store.name = 'John';
 });
+
+// v2.1+ - Persistence
+const { useStore } = createStore(
+  { count: 0 },
+  {},
+  { enabled: true }  // New optional 3rd parameter!
+);
+```
+
+### Upgrading to v2.1.0
+
+**No breaking changes!** Just install the latest version:
+
+```bash
+npm install h-state@latest
+```
+
+**New in v2.1:**
+- ✅ Optional 3rd parameter for persistence
+- ✅ `$persist()` and `$clearPersist()` methods
+- ✅ All existing code continues to work
+
+**Example migration:**
+
+```typescript
+// Before (v2.0)
+const { useStore } = createStore(
+  { todos: [] },
+  { addTodo: (store) => (todo) => {
+    store.todos = [...store.todos, todo];
+  }}
+);
+
+// After (v2.1) - Add persistence!
+const { useStore } = createStore(
+  { todos: [] },
+  { addTodo: (store) => (todo) => {
+    store.todos = [...store.todos, todo];
+  }},
+  { enabled: true, key: 'my-todos' }  // ← Just add this!
+);
 ```
 
 ## Links
