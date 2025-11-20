@@ -1,13 +1,13 @@
 {
   "name": "h-state",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "A lightweight and intuitive state management library for React, using Proxy for seamless reactivity with zero dependencies",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
   "types": "dist/index.d.ts",
   "files": [
-    "dist/index.js",
+    "dist",
     "LICENSE",
     "README.md"
   ],
