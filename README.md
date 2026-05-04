@@ -7,7 +7,16 @@ A lightweight and intuitive state management library for React with deep nested 
 
 🎮 **[Live Demo & Examples](https://hidayetcanozcan.github.io/h-state)**
 
-## What's New in v2.1.0 🎉
+## What's New in v2.2.0 🎉
+
+- 🧬 **Reactive Arrays**: `push / pop / shift / unshift / splice / sort / reverse / fill / copyWithin` now trigger re-renders and persistence automatically — no Proxy, no wrapper types, `Array.isArray` stays `true`.
+- 🧩 **Selector-Based Subscriptions**: `useStore(selector, equalityFn?)` re-renders only when the selected slice changes. Powered by `useSyncExternalStore` for concurrent-mode safety.
+- 🧳 **Versioned Persistence + Deep Merge**: `version` + `migrate` options upgrade stored payloads; nested objects deep-merge with initial state so newly added fields keep their defaults.
+- ♻️ **`$reset()`**: One-call return to initial state + clears persisted payload.
+- ⚙️ **Microtask-Coalesced Persist**: Many synchronous mutations collapse into a single `localStorage` write per tick.
+- 🪶 **Batch Coalescing**: Within `batch(...)` only a single flush is scheduled per store regardless of how many setters fire.
+
+### Previously in v2.1.0
 
 - 💾 **localStorage Persistence**: Automatic state persistence with customizable options
 - ✨ **Deep Nested Reactivity**: Unlimited depth object reactivity with no Proxy overhead
@@ -504,6 +513,95 @@ function Component() {
   return <button onClick={handleReset}>Reset & Reload</button>;
 }
 ```
+
+## Reactive Arrays
+
+Array mutations are tracked automatically — no need to clone on every change:
+
+```typescript
+const { useStore } = createStore(
+  { todos: [] as Todo[] },
+  {
+    addTodo: (store) => (todo: Todo) => {
+      store.todos.push(todo);        // ✅ triggers re-render + persist
+    },
+    removeAt: (store) => (i: number) => {
+      store.todos.splice(i, 1);      // ✅ triggers re-render + persist
+    },
+    togglePinned: (store) => (i: number) => {
+      store.todos[i].pinned = !store.todos[i].pinned; // ✅ nested mutation tracked
+    },
+  }
+);
+```
+
+**Tracked mutation methods**: `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`, `fill`, `copyWithin`.
+
+**Not tracked** (Proxy-free design limitation): direct index assignment `arr[0] = x` and `arr.length = n`. Use `splice` or reassign the array:
+
+```typescript
+store.todos[0] = newTodo;                  // ❌ no re-render
+store.todos.splice(0, 1, newTodo);         // ✅ use this instead
+store.todos = [newTodo, ...store.todos];   // ✅ or reassign
+```
+
+## Selector-Based Subscriptions
+
+By default `useStore()` re-renders on any state change. For fine-grained subscriptions pass a selector:
+
+```typescript
+// Re-renders only when `count` changes
+const count = useStore((s) => s.count);
+
+// Custom equality for derived/object selectors
+const visibleTodos = useStore(
+  (s) => s.todos.filter((t) => !t.done),
+  (a, b) => a.length === b.length && a.every((t, i) => t === b[i])
+);
+```
+
+Selectors use `useSyncExternalStore` under the hood — safe with React 18 concurrent features.
+
+## Versioned Persistence & Migrations
+
+Schema evolution without losing user data:
+
+```typescript
+createStore(
+  { user: { name: '', email: '', role: 'guest' } },
+  {},
+  {
+    enabled: true,
+    key: 'my-app',
+    version: 2,
+    migrate: (persisted, fromVersion) => {
+      if (fromVersion < 2) {
+        // v1 had `user.username`, rename to `user.name`
+        const u = (persisted.user ?? {}) as Record<string, unknown>;
+        if (u.username && !u.name) u.name = u.username;
+        delete u.username;
+      }
+      return persisted;
+    },
+  }
+);
+```
+
+Stored payloads are wrapped in a small envelope `{ __hs_v, __hs_d }`. Payloads without this envelope are treated as legacy `version: 0` and fed through `migrate` on load.
+
+### Deep-Merge Hydration (default: on)
+
+When you add a new nested field to initial state, older persisted payloads no longer erase it — nested plain objects are deep-merged with the initial shape. Disable with `deepMerge: false` for a strict replace.
+
+## `$reset()`
+
+Return the store to its initial state and clear any persisted payload:
+
+```typescript
+store.$reset();
+```
+
+Handy for logout flows, multi-tenant switches, and test teardown.
 
 ## Performance
 

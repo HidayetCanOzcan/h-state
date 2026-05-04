@@ -1,5 +1,34 @@
 import React from "react";
-import { Listener, MethodCreators, PersistOptions, ReactiveState, STATE_ID, StoreType } from "./types";
+import { STATE_ID } from "./types";
+import type { Listener, MethodCreators, MigrateFn, PersistOptions, ReactiveState, StoreType } from "./types";
+
+const VERSION_KEY = "__hs_v";
+const DATA_KEY = "__hs_d";
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+	if (v === null || typeof v !== "object") return false;
+	if (Array.isArray(v)) return false;
+	if (v instanceof Date || v instanceof RegExp) return false;
+	const proto = Object.getPrototypeOf(v);
+	return proto === Object.prototype || proto === null;
+}
+
+function deepMerge<T extends Record<string, unknown>>(
+	base: T,
+	override: Partial<T>,
+): T {
+	const result: Record<string, unknown> = { ...base };
+	for (const key of Object.keys(override)) {
+		const baseVal = (base as Record<string, unknown>)[key];
+		const overrideVal = (override as Record<string, unknown>)[key];
+		if (isPlainObject(baseVal) && isPlainObject(overrideVal)) {
+			result[key] = deepMerge(baseVal, overrideVal as Partial<typeof baseVal>);
+		} else {
+			result[key] = overrideVal;
+		}
+	}
+	return result as T;
+}
 
 class Signal<T> {
 	private value: T;
@@ -40,25 +69,7 @@ function nextUid(): number {
 }
 
 let batchDepth = 0;
-const pendingUpdates = new Set<() => void>();
-
-function scheduleUpdate(fn: () => void): void {
-	if (batchDepth > 0) {
-		pendingUpdates.add(fn);
-	} else {
-		fn();
-	}
-}
-
-function flushUpdates(): void {
-	if (pendingUpdates.size > 0) {
-		const updates = Array.from(pendingUpdates);
-		pendingUpdates.clear();
-		for (const update of updates) {
-			update();
-		}
-	}
-}
+const pendingFlushes = new Set<() => void>();
 
 export function batch<T>(fn: () => T): T {
 	batchDepth++;
@@ -66,8 +77,10 @@ export function batch<T>(fn: () => T): T {
 		return fn();
 	} finally {
 		batchDepth--;
-		if (batchDepth === 0) {
-			flushUpdates();
+		if (batchDepth === 0 && pendingFlushes.size > 0) {
+			const flushes = Array.from(pendingFlushes);
+			pendingFlushes.clear();
+			for (const flush of flushes) flush();
 		}
 	}
 }
@@ -76,61 +89,120 @@ function markUpdated<T extends Record<string, unknown>>(
 	state: ReactiveState<T>,
 	signal: Signal<number>,
 ): void {
-	scheduleUpdate(() => {
+	const flush = () => {
 		const newUid = nextUid();
 		(state as Record<string | symbol, unknown>)[STATE_ID] = newUid;
 		signal.set(newUid);
-	});
+	};
+	if (batchDepth > 0) {
+		// Coalesce: only one flush per (state,signal) pair is needed within a batch.
+		pendingFlushes.add(flush);
+	} else {
+		flush();
+	}
 }
 
 const reactiveCache = new WeakMap<object, object>();
+const trackedArrays = new WeakSet<unknown[]>();
+
+const ARRAY_MUTATION_METHODS = [
+	"push",
+	"pop",
+	"shift",
+	"unshift",
+	"splice",
+	"sort",
+	"reverse",
+	"fill",
+	"copyWithin",
+] as const;
+
+function trackArray(
+	arr: unknown[],
+	rootSignal: Signal<number>,
+	rootState: ReactiveState<Record<string, unknown>>,
+): unknown[] {
+	if (trackedArrays.has(arr)) return arr;
+	trackedArrays.add(arr);
+
+	for (const method of ARRAY_MUTATION_METHODS) {
+		const original = Array.prototype[method] as (...a: unknown[]) => unknown;
+		Object.defineProperty(arr, method, {
+			value: function (this: unknown[], ...args: unknown[]) {
+				const result = original.apply(this, args);
+				markUpdated(rootState, rootSignal);
+				return result;
+			},
+			enumerable: false,
+			writable: true,
+			configurable: true,
+		});
+	}
+
+	// Eagerly wrap object/array elements so nested mutations propagate.
+	for (let i = 0; i < arr.length; i++) {
+		const el = arr[i];
+		if (el === null || typeof el !== "object") continue;
+		if (el instanceof Date || el instanceof RegExp) continue;
+		if (Array.isArray(el)) {
+			trackArray(el as unknown[], rootSignal, rootState);
+		} else {
+			arr[i] = makeReactive(el, rootSignal, rootState);
+		}
+	}
+
+	return arr;
+}
 
 function makeReactive<T>(
 	obj: T,
 	rootSignal: Signal<number>,
 	rootState: ReactiveState<Record<string, unknown>>
 ): T {
-	
+
 	if (obj === null || typeof obj !== "object") {
 		return obj;
 	}
 
-	if (obj instanceof Date || obj instanceof RegExp || obj instanceof Array) {
+	if (obj instanceof Date || obj instanceof RegExp) {
 		return obj;
 	}
-	
+
+	if (Array.isArray(obj)) {
+		return trackArray(obj as unknown[], rootSignal, rootState) as unknown as T;
+	}
+
 	const cached = reactiveCache.get(obj as object);
 	if (cached) {
 		return cached as T;
 	}
-	
+
 	const reactiveObj = {} as T;
 
 	for (const key in obj) {
 		if (Object.hasOwn(obj, key)) {
 			const value = obj[key];
-			
+
 			const isNestedObject =
 				value !== null &&
 				typeof value === "object" &&
 				!(value instanceof Date) &&
-				!(value instanceof RegExp) &&
-				!(value instanceof Array);
+				!(value instanceof RegExp);
 
 			if (isNestedObject) {
-				
+
 				let currentValue = value;
 
 				Object.defineProperty(reactiveObj, key, {
 					get() {
-						
+
 						return makeReactive(currentValue, rootSignal, rootState);
 					},
 					set(newValue) {
 						if (currentValue === newValue) {
 							return;
 						}
-						
+
 						if (currentValue && typeof currentValue === "object") {
 							reactiveCache.delete(currentValue as object);
 						}
@@ -141,7 +213,7 @@ function makeReactive<T>(
 					configurable: true,
 				});
 			} else {
-				
+
 				let currentValue = value;
 
 				Object.defineProperty(reactiveObj, key, {
@@ -161,7 +233,7 @@ function makeReactive<T>(
 			}
 		}
 	}
-	
+
 	reactiveCache.set(obj as object, reactiveObj as object);
 
 	return reactiveObj;
@@ -196,6 +268,50 @@ function defaultDeserialize(data: string): Record<string, unknown> {
 	return JSON.parse(data) as Record<string, unknown>;
 }
 
+function hydrate<T extends Record<string, unknown>>(
+	raw: unknown,
+	initial: T,
+	version: number,
+	migrate: MigrateFn | undefined,
+	onError: (e: Error) => void,
+	useDeepMerge: boolean,
+): T {
+	if (!isPlainObject(raw)) return initial;
+
+	let payload: Record<string, unknown>;
+	let persistedVersion = 0;
+
+	// Envelope format: { __hs_v: N, __hs_d: {...} }
+	if (VERSION_KEY in raw && DATA_KEY in raw) {
+		const v = raw[VERSION_KEY];
+		persistedVersion = typeof v === "number" ? v : 0;
+		const d = raw[DATA_KEY];
+		payload = isPlainObject(d) ? d : {};
+	} else {
+		// Legacy: raw object is the state itself at version 0.
+		payload = raw;
+		persistedVersion = 0;
+	}
+
+	if (persistedVersion !== version) {
+		if (!migrate) {
+			// No migration provided: discard.
+			return initial;
+		}
+		try {
+			payload = migrate(payload, persistedVersion);
+			if (!isPlainObject(payload)) return initial;
+		} catch (e) {
+			onError(e as Error);
+			return initial;
+		}
+	}
+
+	return useDeepMerge
+		? deepMerge(initial, payload as Partial<T>)
+		: ({ ...initial, ...(payload as Partial<T>) } as T);
+}
+
 // ============================================================================
 // Store Creator with Persistence
 // ============================================================================
@@ -217,43 +333,58 @@ export function createStore<
 		debounce: persistOptions?.debounce ?? 0,
 		serialize: persistOptions?.serialize ?? defaultSerialize,
 		deserialize: persistOptions?.deserialize ?? defaultDeserialize,
-		onError: persistOptions?.onError ?? ((error: Error) => console.error("H-State Persist Error:", error)),
+		onError:
+			persistOptions?.onError ?? ((error: Error) => console.error("H-State Persist Error:", error)),
+		version: persistOptions?.version ?? 0,
+		migrate: persistOptions?.migrate,
+		deepMerge: persistOptions?.deepMerge ?? true,
 	};
 
-	// Try to restore from localStorage
-	let restoredState: Partial<T> | null = null;
+	// Try to restore from localStorage (with version / migrate / deep-merge handling)
+	let mergedInitial: T = initial;
 	if (persist.enabled && isLocalStorageAvailable()) {
 		try {
 			const stored = localStorage.getItem(persist.key);
 			if (stored) {
-				restoredState = persist.deserialize(stored) as Partial<T>;
+				const parsed = persist.deserialize(stored);
+				mergedInitial = hydrate(
+					parsed,
+					initial,
+					persist.version,
+					persist.migrate,
+					persist.onError,
+					persist.deepMerge,
+				);
 			}
 		} catch (error) {
 			persist.onError(error as Error);
 		}
 	}
 
-	// Merge initial state with restored state
-	const mergedInitial = restoredState ? { ...initial, ...restoredState } : initial;
-	
 	const internalState = { ...mergedInitial, [STATE_ID]: 0 } as ReactiveState<T>;
 	const signal = new Signal<number>(0);
-	
+
 	const store = {} as StoreType<T, M>;
 
 	// Subscribe to signal for automatic persistence
 	if (persist.enabled) {
 		signal.subscribe(() => {
+			dirtySinceLastSave = true;
 			schedulePersist();
 		});
 	}
 
-	// Debounce timer for persistence
+	// Debounce / microtask scheduling for persistence
 	let persistTimer: ReturnType<typeof setTimeout> | null = null;
+	let persistMicrotaskScheduled = false;
+	let dirtySinceLastSave = false;
 
 	// Save state to localStorage
 	const saveToStorage = () => {
 		if (!persist.enabled || !isLocalStorageAvailable()) {
+			return;
+		}
+		if (!dirtySinceLastSave) {
 			return;
 		}
 
@@ -266,8 +397,13 @@ export function createStore<
 				}
 			}
 
-			const serialized = persist.serialize(stateToSave);
+			const envelope: Record<string, unknown> = {
+				[VERSION_KEY]: persist.version,
+				[DATA_KEY]: stateToSave,
+			};
+			const serialized = persist.serialize(envelope);
 			localStorage.setItem(persist.key, serialized);
+			dirtySinceLastSave = false;
 		} catch (error) {
 			persist.onError(error as Error);
 		}
@@ -285,23 +421,27 @@ export function createStore<
 
 		if (persist.debounce > 0) {
 			persistTimer = setTimeout(saveToStorage, persist.debounce);
-		} else {
-			saveToStorage();
+		} else if (!persistMicrotaskScheduled) {
+			// Coalesce many synchronous updates into a single microtask write.
+			persistMicrotaskScheduled = true;
+			queueMicrotask(() => {
+				persistMicrotaskScheduled = false;
+				saveToStorage();
+			});
 		}
 	};
 
 	for (const key in initial) {
 		if (Object.hasOwn(initial, key)) {
-			const initialValue = initial[key];
+			const initialValue = (internalState as Record<string, unknown>)[key];
 			const isObject =
 				initialValue !== null &&
 				typeof initialValue === "object" &&
 				!(initialValue instanceof Date) &&
-				!(initialValue instanceof RegExp) &&
-				!(initialValue instanceof Array);
+				!(initialValue instanceof RegExp);
 
 			if (isObject) {
-				
+
 				Object.defineProperty(store, key, {
 					get() {
 						const value = (internalState as Record<string, unknown>)[key];
@@ -312,7 +452,7 @@ export function createStore<
 						if (oldValue === value) {
 							return;
 						}
-						
+
 						if (oldValue && typeof oldValue === "object") {
 							reactiveCache.delete(oldValue as object);
 						}
@@ -323,7 +463,7 @@ export function createStore<
 					configurable: true,
 				});
 			} else {
-				
+
 				Object.defineProperty(store, key, {
 					get() {
 						return (internalState as Record<string, unknown>)[key];
@@ -342,16 +482,16 @@ export function createStore<
 			}
 		}
 	}
-	
+
 	(store as StoreType<T, M>).$update = () => {
 		markUpdated(internalState, signal);
 	};
-	
+
 	(store as StoreType<T, M>).$merge = (partial: Partial<T>) => {
 		batch(() => {
 			for (const key in partial) {
 				if (Object.hasOwn(partial, key)) {
-					
+
 					(store as Record<string, unknown>)[key] = partial[key];
 				}
 			}
@@ -372,7 +512,24 @@ export function createStore<
 			}
 		}
 	};
-	
+
+	(store as StoreType<T, M>).$reset = () => {
+		batch(() => {
+			for (const key in initial) {
+				if (Object.hasOwn(initial, key)) {
+					(store as Record<string, unknown>)[key] = (initial as Record<string, unknown>)[key];
+				}
+			}
+		});
+		if (persist.enabled && isLocalStorageAvailable()) {
+			try {
+				localStorage.removeItem(persist.key);
+			} catch (error) {
+				persist.onError(error as Error);
+			}
+		}
+	};
+
 	for (const methodName of Object.keys(methodCreators)) {
 		const creator = methodCreators[methodName];
 		if (!creator) {
@@ -382,17 +539,34 @@ export function createStore<
 		const method = creator(store);
 		Object.assign(store, { [methodName]: method });
 	}
-	
-	function useStore(): StoreType<T, M> {
-		const [, setCounter] = React.useState(0);
 
-		React.useEffect(() => {
-			return signal.subscribe(() => {
-				setCounter((prev: number) => prev + 1);
-			});
-		}, []);
+	const subscribeToSignal = (cb: () => void): (() => void) => signal.subscribe(cb);
 
-		return store;
+	function useStore(): StoreType<T, M>;
+	function useStore<R>(
+		selector: (s: StoreType<T, M>) => R,
+		equalityFn?: (a: R, b: R) => boolean,
+	): R;
+	function useStore<R>(
+		selector?: (s: StoreType<T, M>) => R,
+		equalityFn: (a: R, b: R) => boolean = Object.is,
+	): R | StoreType<T, M> {
+		const cacheRef = React.useRef<{ uid: number; value: R | StoreType<T, M> } | null>(null);
+
+		const getSnapshot = (): R | StoreType<T, M> => {
+			const uid = signal.get();
+			const cached = cacheRef.current;
+			if (cached && cached.uid === uid) return cached.value;
+			const next = selector ? selector(store) : store;
+			if (cached && selector && equalityFn(cached.value as R, next as R)) {
+				cacheRef.current = { uid, value: cached.value };
+				return cached.value;
+			}
+			cacheRef.current = { uid, value: next };
+			return next;
+		};
+
+		return React.useSyncExternalStore(subscribeToSignal, getSnapshot, getSnapshot);
 	}
 
 	return { useStore };
