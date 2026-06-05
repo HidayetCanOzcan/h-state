@@ -2,7 +2,8 @@
 
 A lightweight and intuitive state management library for React with deep nested reactivity, built on signals and getter/setter patterns for optimal performance.
 
-[![npm version](https://badge.fury.io/js/h-state.svg)](https://badge.fury.io/js/h-state)
+[![npm version](https://img.shields.io/npm/v/h-state?color=cb3837&label=npm)](https://www.npmjs.com/package/h-state)
+[![npm downloads](https://img.shields.io/npm/dm/h-state?color=6366f1)](https://www.npmjs.com/package/h-state)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 🎮 **[Live Demo & Examples](https://hidayetcanozcan.github.io/h-state)**

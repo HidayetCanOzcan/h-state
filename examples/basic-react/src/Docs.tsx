@@ -68,6 +68,7 @@ export function Docs({ onBack }: DocsProps) {
             <a href="#methods" className="docs-nav-link">Methods</a>
             
             <span className="docs-nav-label">Advanced</span>
+            <a href="#subscriptions" className="docs-nav-link">Subscriptions</a>
             <a href="#persistence" className="docs-nav-link">Persistence</a>
             <a href="#batch" className="docs-nav-link">Batch Updates</a>
             <a href="#typescript" className="docs-nav-link">TypeScript</a>
@@ -199,30 +200,68 @@ store.settings.theme.colors.primary = "#6366f1";
           <section id="arrays" className="docs-section">
             <h2>Arrays</h2>
             <p>
-              For arrays, replace the entire array to trigger updates:
+              Since v2.2, array mutation methods are tracked automatically — no Proxy, and{' '}
+              <code>Array.isArray</code> stays <code>true</code>. Nested mutations on elements
+              (including freshly inserted ones) re-render too.
             </p>
             <div className="code-block">
-              <pre>{`// Add item
-store.todos = [...store.todos, newTodo];
+              <pre>{`// Tracked methods: push, pop, shift, unshift,
+// splice, sort, reverse, fill, copyWithin
+store.todos.push({ text, done: false }); // ✅ re-render
+store.todos.splice(i, 1);                 // ✅
+store.todos.sort(byName);                 // ✅
+store.todos[i].done = true;               // ✅ nested element
 
-// Remove item
-store.todos = store.todos.filter(t => t.id !== id);
+// Immutable reassignment still works too
+store.todos = [...store.todos, newTodo];  // ✅`}</pre>
+            </div>
+            <p style={{ marginTop: '1rem' }}>
+              <strong>Proxy-free limitation:</strong> direct index assignment and length writes
+              are NOT tracked — use <code>splice</code> or reassign instead:
+            </p>
+            <div className="code-block">
+              <pre>{`store.todos[0] = item;   // ❌ not tracked
+store.todos.length = 0;  // ❌ not tracked
 
-// Update item
-store.todos = store.todos.map(t => 
-  t.id === id ? { ...t, done: true } : t
+store.todos.splice(0, 1, item); // ✅ use this
+store.todos = [];               // ✅ or reassign`}</pre>
+            </div>
+          </section>
+
+          {/* Subscriptions */}
+          <section id="subscriptions" className="docs-section">
+            <h2>Subscriptions (outside React)</h2>
+            <p>
+              <code>createStore</code> returns the live <code>store</code> alongside{' '}
+              <code>useStore</code>, so you can read and react to state outside components —
+              loggers, WebSocket/IndexedDB bridges, effects, and tests.
+            </p>
+            <div className="code-block">
+              <pre>{`const { useStore, store } = createStore(/* … */);
+
+// Plain, non-reactive deep snapshot (state keys only)
+store.$getState();
+
+// Fire on ANY change — receives next + previous snapshots
+const unsub = store.$subscribe((next, prev) => {
+  console.log(prev.count, '→', next.count);
+});
+
+// Fire only when a derived slice changes
+const stop = store.$subscribeWithSelector(
+  (s) => s.user.name,
+  (name, prevName) => console.log(prevName, '→', name),
+  // optional equalityFn (defaults to Object.is)
 );
 
-// Or use a method for cleaner code
-const { useStore } = createStore(
-  { todos: [] },
-  {
-    addTodo: (store) => (text: string) => {
-      store.todos = [...store.todos, { text, done: false }];
-    }
-  }
-);`}</pre>
+unsub();
+stop();`}</pre>
             </div>
+            <ul style={{ color: 'var(--text-secondary)', marginLeft: '1.5rem' }}>
+              <li><code>$getState()</code> reads through the reactive layer, so nested mutations are reflected.</li>
+              <li>Subscriptions are batch-aware: inside <code>batch(...)</code> listeners fire once per flush.</li>
+              <li>Both subscribe methods return an unsubscribe function.</li>
+            </ul>
           </section>
 
           {/* Methods */}
@@ -711,14 +750,17 @@ function App() {
           <section id="faq" className="docs-section">
             <h2>FAQ</h2>
 
-            <h3>Why don't array mutations work?</h3>
+            <h3>Do array mutations work?</h3>
             <p>
-              h-state tracks object property assignments, not array mutations like <code>push</code> or <code>splice</code>. 
-              Replace the array instead:
+              Yes — since v2.2, mutation methods (<code>push</code>, <code>splice</code>,{' '}
+              <code>sort</code>, etc.) are tracked automatically and trigger re-renders. Only
+              direct index assignment (<code>items[0] = x</code>) and <code>length</code> writes
+              are not tracked; use <code>splice</code> or reassign the array instead.
             </p>
             <div className="code-block">
-              <pre>{`// Instead of: store.items.push(item)
-store.items = [...store.items, item];`}</pre>
+              <pre>{`store.items.push(item);         // ✅ tracked
+store.items[0] = item;          // ❌ not tracked
+store.items.splice(0, 1, item); // ✅ use this instead`}</pre>
             </div>
 
             <h3>Can I use h-state with class components?</h3>

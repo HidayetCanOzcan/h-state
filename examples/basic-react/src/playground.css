@@ -1,0 +1,351 @@
+/* ============================================
+   H-STATE PLAYGROUND - scoped, responsive demo UI
+   Uses the landing design tokens (see styles.css :root)
+   ============================================ */
+
+.pg {
+  min-height: 100vh;
+  padding: 6rem 1.25rem 4rem;
+  position: relative;
+}
+
+.pg-shell {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.pg-head {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.pg-head h1 {
+  font-size: clamp(1.8rem, 5vw, 2.6rem);
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.pg-head .grad {
+  background: linear-gradient(135deg, var(--primary-light) 0%, var(--accent) 50%, var(--accent-green) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.pg-head p {
+  color: var(--text-secondary);
+  max-width: 620px;
+  margin: 0.75rem auto 0;
+  font-size: clamp(0.95rem, 2.5vw, 1.05rem);
+}
+
+/* Tabs */
+.pg-tabs {
+  position: sticky;
+  top: 64px;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  margin: 0 auto 1.5rem;
+  flex-wrap: wrap;
+}
+
+.pg-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pg-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-card-hover);
+}
+
+.pg-tab.active {
+  color: #fff;
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  box-shadow: 0 4px 18px var(--glow);
+}
+
+/* Cards */
+.pg-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 860px) {
+  .pg-grid.two {
+    grid-template-columns: 1.1fr 0.9fr;
+    align-items: start;
+  }
+}
+
+.pg-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: clamp(1.1rem, 3vw, 1.75rem);
+  transition: border-color 0.3s ease;
+}
+
+.pg-card:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.pg-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.pg-card-head h2 {
+  font-size: clamp(1.1rem, 3vw, 1.35rem);
+  font-weight: 700;
+}
+
+.pg-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--primary-light);
+  white-space: nowrap;
+}
+
+.pg-muted {
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  margin-bottom: 1rem;
+}
+
+/* Inputs + buttons */
+.pg-row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.pg-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.7rem 0.9rem;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.95rem;
+  transition: border-color 0.2s ease;
+}
+
+.pg-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.pg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.pg-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--primary);
+}
+
+.pg-btn.primary {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: #fff;
+  border-color: transparent;
+}
+
+.pg-btn.danger:hover {
+  border-color: #ef4444;
+  color: #fca5a5;
+}
+
+.pg-btn.icon {
+  padding: 0.5rem 0.8rem;
+}
+
+.pg-btns {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.9rem 0 1.1rem;
+}
+
+.pg-counter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.pg-counter .val {
+  font-size: clamp(1.5rem, 6vw, 2.25rem);
+  font-weight: 800;
+  min-width: 120px;
+  text-align: center;
+}
+
+.pg-field {
+  margin-top: 0.9rem;
+}
+
+.pg-field label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.4rem;
+}
+
+/* List */
+.pg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.pg-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 0.9rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.pg-item input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+  flex-shrink: 0;
+}
+
+.pg-item .pg-text {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.98rem;
+}
+
+.pg-item .pg-text:focus {
+  outline: none;
+}
+
+.pg-item .pg-text.done {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+
+/* Notes / alerts */
+.pg-note {
+  margin-top: 1.1rem;
+  padding: 0.9rem 1.1rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: #fcd9a3;
+}
+
+.pg-note code {
+  font-family: 'JetBrains Mono', monospace;
+  color: #fde68a;
+}
+
+/* Code block */
+.pg-code {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.1rem 1.25rem;
+  overflow-x: auto;
+}
+
+.pg-code pre {
+  margin: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  white-space: pre;
+}
+
+/* Log */
+.pg-log {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.pg-log-line {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  padding: 0.55rem 0.75rem;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  word-break: break-word;
+}
+
+.pg-empty {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 1rem;
+}
+
+@media (max-width: 600px) {
+  .pg {
+    padding: 5.5rem 1rem 3rem;
+  }
+  .pg-counter .val {
+    min-width: 90px;
+  }
+  .pg-btns .pg-btn,
+  .pg-row .pg-btn {
+    flex: 1;
+  }
+}
