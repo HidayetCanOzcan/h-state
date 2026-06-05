@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { ListChecks, Plus, Trash2, AlertTriangle, ArrowDownUp, ArrowUpDown } from 'lucide-react';
 import { useArrayStore } from './store/arrayStore';
 import './playground.css';
 
@@ -24,7 +25,7 @@ function ArrayReactivityDemo() {
       <div className="pg-grid two">
         <div className="pg-card">
           <div className="pg-card-head">
-            <h2>📝 Live list · {store.items.length} items</h2>
+            <h2 className="pg-icon-head"><ListChecks size={18} /> Live list · {store.items.length} items</h2>
             <span className="pg-badge">render #{renderCount.current}</span>
           </div>
 
@@ -38,7 +39,7 @@ function ArrayReactivityDemo() {
               placeholder="New item, then push()…"
             />
             <button type="button" onClick={store.add} className="pg-btn primary">
-              push()
+              <Plus size={15} /> push()
             </button>
           </div>
 
@@ -47,9 +48,9 @@ function ArrayReactivityDemo() {
             <button type="button" onClick={store.unshiftSample} className="pg-btn">unshift()</button>
             <button type="button" onClick={store.pop} className="pg-btn">pop()</button>
             <button type="button" onClick={store.shift} className="pg-btn">shift()</button>
-            <button type="button" onClick={store.sortAsc} className="pg-btn">sort()</button>
-            <button type="button" onClick={store.reverse} className="pg-btn">reverse()</button>
-            <button type="button" onClick={store.reset} className="pg-btn danger">reset</button>
+            <button type="button" onClick={store.sortAsc} className="pg-btn"><ArrowDownUp size={14} /> sort()</button>
+            <button type="button" onClick={store.reverse} className="pg-btn"><ArrowUpDown size={14} /> reverse()</button>
+            <button type="button" onClick={store.reset} className="pg-btn danger"><Trash2 size={14} /> reset</button>
           </div>
 
           <div className="pg-list">
@@ -67,8 +68,8 @@ function ArrayReactivityDemo() {
                   value={item.text}
                   onChange={(e) => store.editAt(index, e.target.value)}
                 />
-                <button type="button" onClick={() => store.removeAt(index)} className="pg-btn danger icon">
-                  splice
+                <button type="button" onClick={() => store.removeAt(index)} className="pg-btn danger icon" aria-label="splice">
+                  <Trash2 size={15} />
                 </button>
               </div>
             ))}
@@ -78,7 +79,7 @@ function ArrayReactivityDemo() {
           </div>
 
           <div className="pg-note">
-            <strong>⚠️ Proxy-free limitation:</strong> direct index assignment{' '}
+            <strong style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><AlertTriangle size={15} /> Proxy-free limitation:</strong> direct index assignment{' '}
             <code>items[0] = x</code> is NOT tracked — the data changes but the UI won’t update
             until the next tracked change.
             <div style={{ marginTop: '0.7rem' }}>

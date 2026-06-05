@@ -1,48 +1,47 @@
 import { createStore } from '../../../../src';
 
-interface CrossTabState extends Record<string, unknown> {
-  count: number;
-  color: string;
-  messages: string[];
-  draft: string;
+/** A reaction “ping” — changing `id` triggers a synced burst in every open tab. */
+export interface ReactionPing {
+  id: number;
+  emoji: string;
 }
 
-interface CrossTabMethods extends Record<string, unknown> {
-  increment: () => void;
-  decrement: () => void;
-  setColor: (c: string) => void;
-  setDraft: (d: string) => void;
-  send: () => void;
-  reset: () => void;
+interface CanvasState extends Record<string, unknown> {
+  /** Map of "row-col" → hex color. A shared pixel canvas, synced across tabs. */
+  pixels: Record<string, string>;
+  /** Total brush strokes ever painted (purely for the stat counter). */
+  strokes: number;
+  /** Last reaction broadcast; bump `id` to fire a burst everywhere. */
+  ping: ReactionPing | null;
 }
+
+interface CanvasMethods extends Record<string, unknown> {
+  paint: (key: string, color: string) => void;
+  clear: () => void;
+  react: (emoji: string) => void;
+}
+
+export const GRID = 12;
 
 export const { useStore: useCrossTabStore, store: crossTabStore } = createStore<
-  CrossTabState,
-  CrossTabMethods
+  CanvasState,
+  CanvasMethods
 >(
+  { pixels: {}, strokes: 0, ping: null },
   {
-    count: 0,
-    color: '#6366f1',
-    messages: [],
-    draft: '',
-  },
-  {
-    increment: (s) => () => { s.count++; },
-    decrement: (s) => () => { s.count--; },
-    setColor: (s) => (c: string) => { s.color = c; },
-    setDraft: (s) => (d: string) => { s.draft = d; },
-    send: (s) => () => {
-      const text = s.draft.trim();
-      if (!text) return;
-      s.messages.push(text);
-      s.draft = '';
+    paint: (s) => (key: string, color: string) => {
+      if (s.pixels[key] === color) return;
+      s.pixels = { ...s.pixels, [key]: color };
+      s.strokes++;
     },
-    reset: (s) => () => {
-      s.count = 0;
-      s.messages = [];
+    clear: (s) => () => {
+      s.pixels = {};
+    },
+    react: (s) => (emoji: string) => {
+      s.ping = { id: Date.now() + Math.random(), emoji };
     },
   },
-  // Persist so a brand-new tab loads the latest state, then stays live via sync.
-  { enabled: true, key: 'hstate-crosstab-demo', debounce: 100 },
-  { syncTabs: { channel: 'hstate-crosstab-demo' } },
+  // Persist so a brand-new tab loads the current artwork, then stays live via sync.
+  { enabled: true, key: 'hstate-canvas-demo', debounce: 80 },
+  { syncTabs: { channel: 'hstate-canvas-demo' } },
 );

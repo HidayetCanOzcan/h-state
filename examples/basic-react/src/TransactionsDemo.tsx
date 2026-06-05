@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { Landmark, ArrowDownToLine, ArrowUpFromLine, RotateCcw, CheckCircle2, Undo2 } from 'lucide-react';
 import { useTransactionStore } from './store/transactionStore';
 import './playground.css';
 
 function TransactionsDemo() {
   const store = useTransactionStore();
   const [flash, setFlash] = useState<{ kind: 'ok' | 'rollback'; text: string } | null>(null);
+  const [shake, setShake] = useState(false);
 
   const withdraw = () => {
     try {
@@ -12,6 +14,7 @@ function TransactionsDemo() {
       setFlash({ kind: 'ok', text: `Withdrew $${store.amount}. New balance $${store.balance}.` });
     } catch (err) {
       // $transaction already rolled back balance + log; nothing partial remains.
+      setShake(true);
       setFlash({ kind: 'rollback', text: `Rolled back: ${(err as Error).message}. Balance untouched ($${store.balance}).` });
     }
   };
@@ -34,9 +37,12 @@ function TransactionsDemo() {
       </div>
 
       <div className="pg-grid two">
-        <div className="pg-card">
+        <div
+          className={`pg-card${shake ? ' shake' : ''}`}
+          onAnimationEnd={() => setShake(false)}
+        >
           <div className="pg-card-head">
-            <h2>🏦 Account</h2>
+            <h2 className="pg-icon-head"><Landmark size={18} /> Account</h2>
             <span className="pg-badge" style={{ background: store.balance < 50 ? '#f59e0b' : '#22c55e', color: '#0a0a0f' }}>
               balance ${store.balance}
             </span>
@@ -55,9 +61,9 @@ function TransactionsDemo() {
           </div>
 
           <div className="pg-btns">
-            <button type="button" className="pg-btn primary" onClick={deposit}>+ deposit</button>
-            <button type="button" className="pg-btn" onClick={withdraw}>− withdraw</button>
-            <button type="button" className="pg-btn danger" onClick={store.reset}>reset</button>
+            <button type="button" className="pg-btn primary" onClick={deposit}><ArrowDownToLine size={15} /> deposit</button>
+            <button type="button" className="pg-btn" onClick={withdraw}><ArrowUpFromLine size={15} /> withdraw</button>
+            <button type="button" className="pg-btn danger" onClick={store.reset}><RotateCcw size={15} /> reset</button>
           </div>
 
           {flash && (
@@ -69,8 +75,8 @@ function TransactionsDemo() {
                 borderColor: flash.kind === 'rollback' ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.4)',
               }}
             >
-              {flash.kind === 'rollback' ? '↩️ ' : '✅ '}
-              {flash.text}
+              {flash.kind === 'rollback' ? <Undo2 size={16} style={{ flexShrink: 0 }} /> : <CheckCircle2 size={16} style={{ flexShrink: 0 }} />}
+              <span>{flash.text}</span>
             </div>
           )}
 

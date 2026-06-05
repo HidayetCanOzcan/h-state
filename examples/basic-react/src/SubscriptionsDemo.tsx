@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Minus, Plus, Radio, Activity, Terminal } from 'lucide-react';
 import { useSubStore, subStore } from './store/subscriptionStore';
 import './playground.css';
 
@@ -7,6 +8,14 @@ type LogEntry = { id: number; kind: 'any' | 'selector'; text: string };
 function SubscriptionsDemo() {
   // React view — re-renders via the hook as usual.
   const store = useSubStore();
+  const [series, setSeries] = useState<number[]>([]);
+
+  // Record a rolling series of count values to drive the live sparkline.
+  useEffect(() => {
+    setSeries((s) => [...s, store.count].slice(-28));
+  }, [store.count]);
+
+  const max = Math.max(1, ...series.map((v) => Math.abs(v)));
 
   // External ($subscribe / $subscribeWithSelector) events are collected here
   // to PROVE the store can drive non-React logic. We only use React state to
@@ -49,12 +58,23 @@ function SubscriptionsDemo() {
       <div className="pg-grid two">
         <div className="pg-card">
           <div className="pg-card-head">
-            <h2>🎛️ Mutate the store</h2>
+            <h2 className="pg-icon-head"><Activity size={18} /> Mutate the store</h2>
           </div>
           <div className="pg-counter">
-            <button type="button" onClick={store.decrement} className="pg-btn">−</button>
+            <button type="button" onClick={store.decrement} className="pg-btn" aria-label="decrement"><Minus size={16} /></button>
             <span className="val">{store.count}</span>
-            <button type="button" onClick={store.increment} className="pg-btn primary">+</button>
+            <button type="button" onClick={store.increment} className="pg-btn primary" aria-label="increment"><Plus size={16} /></button>
+          </div>
+
+          <div className="pg-spark">
+            {series.map((v, i) => (
+              <span
+                key={i}
+                className="pg-spark-bar"
+                style={{ height: `${10 + (Math.abs(v) / max) * 90}%`, opacity: 0.4 + (i / series.length) * 0.6 }}
+              />
+            ))}
+            {series.length === 0 && <span className="pg-muted" style={{ margin: 0 }}>count history →</span>}
           </div>
           <div className="pg-field">
             <label htmlFor="sub-name">Name</label>
@@ -81,19 +101,24 @@ store.$getState(); // plain deep snapshot`}</pre>
 
         <div className="pg-card">
           <div className="pg-card-head">
-            <h2>📡 External log</h2>
+            <h2 className="pg-icon-head"><Radio size={18} /> External event stream</h2>
           </div>
           <p className="pg-muted">
             Counter changes fire <code>$subscribe</code> only; name changes fire both.
           </p>
           <div className="pg-log">
-            {log.length === 0 && <p className="pg-empty">Interact to see events…</p>}
+            {log.length === 0 && (
+              <p className="pg-empty" style={{ display: 'inline-flex', gap: 6, alignItems: 'center', justifyContent: 'center' }}>
+                <Terminal size={15} /> Interact to see live events…
+              </p>
+            )}
             {log.map((entry) => (
               <div
                 key={entry.id}
                 className="pg-log-line"
                 style={{ color: entry.kind === 'selector' ? '#34d399' : '#a5b4fc' }}
               >
+                <span className="dot" style={{ background: entry.kind === 'selector' ? '#34d399' : '#a5b4fc' }} />
                 {entry.text}
               </div>
             ))}

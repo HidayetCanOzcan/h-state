@@ -1,3 +1,4 @@
+import { Undo2, Redo2, Trash2, Plus, X, FileText } from 'lucide-react';
 import { useTimeTravelStore } from './store/timeTravelStore';
 import './playground.css';
 
@@ -20,19 +21,30 @@ function TimeTravelDemo() {
       <div className="pg-grid two">
         <div className="pg-card">
           <div className="pg-card-head">
-            <h2>📄 Edit something</h2>
-            <span className="pg-badge">⬅ {past} · {future} ➡</span>
+            <h2 className="pg-icon-head"><FileText size={18} /> Document editor</h2>
+            <span className="pg-badge">{past} undo · {future} redo</span>
+          </div>
+
+          <div className="pg-timeline">
+            {Array.from({ length: past }).map((_, i) => (
+              <span key={`p${i}`} className="pg-tl-node past" />
+            ))}
+            <span className="pg-tl-node now" />
+            {Array.from({ length: future }).map((_, i) => (
+              <span key={`f${i}`} className="pg-tl-node future" />
+            ))}
+            {past === 0 && future === 0 && <span className="pg-muted" style={{ margin: 0 }}>edit below to build history →</span>}
           </div>
 
           <div className="pg-btns">
             <button type="button" className="pg-btn primary" disabled={!canUndo} onClick={store.$undo}>
-              ↶ Undo
+              <Undo2 size={15} /> Undo
             </button>
             <button type="button" className="pg-btn" disabled={!canRedo} onClick={store.$redo}>
-              ↷ Redo
+              <Redo2 size={15} /> Redo
             </button>
             <button type="button" className="pg-btn danger" onClick={store.$clearHistory}>
-              clear history
+              <Trash2 size={15} /> clear history
             </button>
           </div>
 
@@ -76,7 +88,7 @@ function TimeTravelDemo() {
                 onChange={(e) => store.setDraft(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && store.addItem()}
               />
-              <button type="button" className="pg-btn primary" onClick={store.addItem}>add</button>
+              <button type="button" className="pg-btn primary" onClick={store.addItem}><Plus size={15} /> add</button>
             </div>
           </div>
 
@@ -86,8 +98,8 @@ function TimeTravelDemo() {
                 <span className="pg-text" style={{ borderLeft: `3px solid ${store.color}`, paddingLeft: '0.6rem' }}>
                   {item}
                 </span>
-                <button type="button" className="pg-btn danger icon" onClick={() => store.removeAt(index)}>
-                  remove
+                <button type="button" className="pg-btn danger icon" onClick={() => store.removeAt(index)} aria-label="remove">
+                  <X size={15} />
                 </button>
               </div>
             ))}
