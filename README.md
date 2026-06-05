@@ -13,7 +13,15 @@ A lightweight and intuitive state management library for React with deep nested 
 > are bundled in the npm tarball, so Cursor / Claude Code / Copilot / Codex can read them from
 > `node_modules/h-state/`. An installable Agent Skill lives in [`skills/h-state/SKILL.md`](./skills/h-state/SKILL.md).
 
-## What's New in v2.5.0 🎉
+## What's New in v2.7.0 🎉
+
+- ⏳ **Time Travel (undo / redo) — in one line.** Opt in with `{ history: true }` and get full undo/redo for free:
+  - `store.$undo()` / `store.$redo()` → step back/forward through state; return `true` if a step was taken.
+  - `store.$history()` → `{ canUndo, canRedo, past, future }` for wiring up buttons.
+  - `store.$clearHistory()` → drop the stacks without touching state. `limit` caps memory (default 100).
+  - Works with primitives, nested objects, and arrays. Zero extra dependencies.
+
+### Previously in v2.5.0
 
 - 🔌 **Vanilla Subscriptions (use outside React)**: `createStore` now also returns the live `store` so you can read and react to state anywhere — effects, loggers, WebSocket bridges, tests.
   - `store.$getState()` → plain, non-reactive deep snapshot (state keys only).
@@ -504,6 +512,9 @@ Every store instance includes:
 - **`$getState()`**: Plain, non-reactive deep snapshot (state keys only)
 - **`$subscribe(listener)`**: Subscribe to any change outside React → unsubscribe fn
 - **`$subscribeWithSelector(selector, listener, equalityFn?)`**: Subscribe to a derived slice → unsubscribe fn
+- **`$undo()` / `$redo()`**: Time travel (requires `{ history: true }`) → returns `true` if a step was taken
+- **`$history()`**: `{ canUndo, canRedo, past, future }`
+- **`$clearHistory()`**: Empty the undo/redo stacks
 
 **Example:**
 ```typescript
@@ -579,6 +590,41 @@ const visibleTodos = useStore(
 ```
 
 Selectors use `useSyncExternalStore` under the hood — safe with React 18 concurrent features.
+
+## Time Travel (undo / redo)
+
+Opt in with the 4th `createStore` argument and get undo/redo with no extra libraries:
+
+```typescript
+const { useStore, store } = createStore<State, Methods>(
+  { text: '', items: [] as string[] },
+  {
+    setText: (s) => (t: string) => { s.text = t; },
+    addItem: (s) => (i: string) => { s.items.push(i); },
+  },
+  undefined,                 // persistOptions (3rd arg)
+  { history: true },         // 👈 enable time travel (or { history: { limit: 50 } })
+);
+
+function Editor() {
+  const store = useStore();
+  const { canUndo, canRedo } = store.$history();
+  return (
+    <>
+      <input value={store.text} onChange={(e) => store.setText(e.target.value)} />
+      <button disabled={!canUndo} onClick={store.$undo}>Undo</button>
+      <button disabled={!canRedo} onClick={store.$redo}>Redo</button>
+    </>
+  );
+}
+```
+
+**Notes**
+
+- Each committed change records a snapshot. Group multiple mutations with `batch(...)` to record one step.
+- A new change after an undo clears the redo stack (linear history, like every editor).
+- `limit` caps the number of retained past snapshots (default `100`).
+- History is **off by default** — zero overhead unless you enable it.
 
 ## Vanilla Subscriptions (outside React)
 

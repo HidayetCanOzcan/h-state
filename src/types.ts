@@ -8,6 +8,24 @@ export type ReactiveState<T> = T & {
 export type StoreListener<T> = (state: T, prevState: T) => void;
 export type SelectorListener<R> = (selected: R, prevSelected: R) => void;
 
+export type HistoryState = {
+	canUndo: boolean;
+	canRedo: boolean;
+	past: number;
+	future: number;
+};
+
+export type HistoryOptions = {
+	enabled?: boolean;
+	/** Max number of past snapshots to retain. Default 100. */
+	limit?: number;
+};
+
+export interface StoreOptions {
+	/** Enable time-travel (undo/redo). Pass `true` or `{ limit }`. */
+	history?: boolean | HistoryOptions;
+}
+
 export type StoreType<
 	T extends Record<string, unknown>,
 	M extends Record<string, unknown>,
@@ -37,6 +55,18 @@ export type StoreType<
 			listener: SelectorListener<R>,
 			equalityFn?: (a: R, b: R) => boolean,
 		) => () => void;
+		/**
+		 * Time-travel: step back to the previous recorded state. No-op when history is
+		 * disabled or there is nothing to undo. Returns true if a step was taken.
+		 * Enable via the 4th `createStore` arg: `{ history: true }`.
+		 */
+		$undo: () => boolean;
+		/** Time-travel: re-apply the next state after an undo. Returns true if a step was taken. */
+		$redo: () => boolean;
+		/** Clear the undo/redo history without changing current state. */
+		$clearHistory: () => void;
+		/** Snapshot of history availability (canUndo/canRedo + stack sizes). */
+		$history: () => HistoryState;
 	};
 
 export type MethodCreators<

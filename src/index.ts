@@ -1,6 +1,6 @@
 import React from "react";
 import { STATE_ID } from "./types";
-import type { Listener, MethodCreators, MigrateFn, PersistOptions, ReactiveState, StoreType } from "./types";
+import type { HistoryState, Listener, MethodCreators, MigrateFn, PersistOptions, ReactiveState, StoreOptions, StoreType } from "./types";
 
 const VERSION_KEY = "__hs_v";
 const DATA_KEY = "__hs_d";
@@ -337,6 +337,7 @@ export function createStore<
 	initial: T,
 	methodCreators: MethodCreators<T, M>,
 	persistOptions?: PersistOptions,
+	storeOptions?: StoreOptions,
 ): {
 	useStore: () => StoreType<T, M>;
 	store: StoreType<T, M>;
@@ -580,6 +581,70 @@ export function createStore<
 		});
 	};
 
+	// ----------------------------------------------------------------------
+	// Time travel (undo / redo) — opt-in via storeOptions.history
+	// ----------------------------------------------------------------------
+	const historyOpt = storeOptions?.history;
+	const historyEnabled = historyOpt === true || (typeof historyOpt === "object" && (historyOpt.enabled ?? true));
+	const historyLimit =
+		typeof historyOpt === "object" && typeof historyOpt.limit === "number" ? historyOpt.limit : 100;
+
+	const past: T[] = [];
+	const future: T[] = [];
+	let lastSnapshot: T = getPlainState();
+	let isTimeTraveling = false;
+
+	const restoreSnapshot = (snapshot: T) => {
+		isTimeTraveling = true;
+		batch(() => {
+			for (const key in initial) {
+				if (Object.hasOwn(initial, key)) {
+					(store as Record<string, unknown>)[key] = (snapshot as Record<string, unknown>)[key];
+				}
+			}
+		});
+		isTimeTraveling = false;
+		lastSnapshot = getPlainState();
+	};
+
+	if (historyEnabled) {
+		signal.subscribe(() => {
+			if (isTimeTraveling) return;
+			past.push(lastSnapshot);
+			if (past.length > historyLimit) past.shift();
+			future.length = 0;
+			lastSnapshot = getPlainState();
+		});
+	}
+
+	(store as StoreType<T, M>).$undo = () => {
+		if (!historyEnabled || past.length === 0) return false;
+		const previous = past.pop() as T;
+		future.push(lastSnapshot);
+		restoreSnapshot(previous);
+		return true;
+	};
+
+	(store as StoreType<T, M>).$redo = () => {
+		if (!historyEnabled || future.length === 0) return false;
+		const next = future.pop() as T;
+		past.push(lastSnapshot);
+		restoreSnapshot(next);
+		return true;
+	};
+
+	(store as StoreType<T, M>).$clearHistory = () => {
+		past.length = 0;
+		future.length = 0;
+	};
+
+	(store as StoreType<T, M>).$history = (): HistoryState => ({
+		canUndo: historyEnabled && past.length > 0,
+		canRedo: historyEnabled && future.length > 0,
+		past: past.length,
+		future: future.length,
+	});
+
 	(store as StoreType<T, M>).$reset = () => {
 		batch(() => {
 			for (const key in initial) {
@@ -648,5 +713,5 @@ export function createStore<
 }
 
 // Re-export types for convenience
-export type { PersistOptions, StoreType, MethodCreators } from "./types";
+export type { PersistOptions, StoreType, MethodCreators, StoreOptions, HistoryOptions, HistoryState } from "./types";
 

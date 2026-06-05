@@ -69,6 +69,7 @@ export function Docs({ onBack }: DocsProps) {
             
             <span className="docs-nav-label">Advanced</span>
             <a href="#subscriptions" className="docs-nav-link">Subscriptions</a>
+            <a href="#time-travel" className="docs-nav-link">Time Travel</a>
             <a href="#persistence" className="docs-nav-link">Persistence</a>
             <a href="#batch" className="docs-nav-link">Batch Updates</a>
             <a href="#typescript" className="docs-nav-link">TypeScript</a>
@@ -262,6 +263,50 @@ stop();`}</pre>
               <li>Subscriptions are batch-aware: inside <code>batch(...)</code> listeners fire once per flush.</li>
               <li>Both subscribe methods return an unsubscribe function.</li>
             </ul>
+          </section>
+
+          {/* Time Travel */}
+          <section id="time-travel" className="docs-section">
+            <h2>Time Travel (undo / redo)</h2>
+            <p>
+              Opt in with the 4th <code>createStore</code> argument and get undo/redo with no extra
+              libraries. History is <strong>off by default</strong> (zero overhead).
+            </p>
+            <div className="code-block">
+              <pre>{`const { useStore, store } = createStore(
+  { text: '', items: [] },
+  {
+    setText: (s) => (t) => { s.text = t; },
+    addItem: (s) => (i) => { s.items.push(i); },
+  },
+  undefined,             // persistOptions (3rd arg)
+  { history: true },     // 👈 enable time travel (or { history: { limit: 50 } })
+);
+
+store.$undo();   // step back  → boolean
+store.$redo();   // step forward → boolean
+store.$history(); // { canUndo, canRedo, past, future }
+store.$clearHistory();`}</pre>
+            </div>
+            <p style={{ marginTop: '1rem' }}>Wire it to buttons in React:</p>
+            <div className="code-block">
+              <pre>{`function Editor() {
+  const store = useStore();
+  const { canUndo, canRedo } = store.$history();
+  return (
+    <>
+      <input value={store.text} onChange={(e) => store.setText(e.target.value)} />
+      <button disabled={!canUndo} onClick={store.$undo}>Undo</button>
+      <button disabled={!canRedo} onClick={store.$redo}>Redo</button>
+    </>
+  );
+}`}</pre>
+            </div>
+            <div className="info-box">
+              <strong>💡 Tip:</strong> each committed change records one snapshot. Group multiple
+              mutations with <code>batch(...)</code> so an action becomes a single undo step. A new
+              change after an undo clears the redo stack (linear history).
+            </div>
           </section>
 
           {/* Methods */}

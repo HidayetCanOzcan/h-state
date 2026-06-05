@@ -66,10 +66,29 @@ const snapshot = store.$getState(); // plain deep snapshot; re-call after change
 unsub();
 ```
 
+## Time travel (undo / redo)
+
+Opt in with the **4th** `createStore` arg. History is OFF by default.
+
+```ts
+const { useStore, store } = createStore(initial, methods,
+  undefined,            // persistOptions (pass undefined if unused)
+  { history: true },    // or { history: { limit: 50 } }
+);
+
+store.$undo();  // → boolean
+store.$redo();  // → boolean
+const { canUndo, canRedo, past, future } = store.$history();
+store.$clearHistory();
+```
+
+Each committed change records one snapshot. Wrap multi-mutation actions in `batch(...)` so they
+become a single undo step. A new change after undo clears the redo stack.
+
 ## Built-in store methods
 
 `$getState`, `$subscribe`, `$subscribeWithSelector`, `$merge(partial)`, `$update`,
-`$persist`, `$clearPersist`, `$reset`.
+`$persist`, `$clearPersist`, `$reset`, `$undo`, `$redo`, `$history`, `$clearHistory`.
 
 ## Batch & persistence
 

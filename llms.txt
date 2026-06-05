@@ -2,13 +2,15 @@
 
 > Lightweight, Proxy-free state management for React. Mutate state directly
 > (`store.count++`, `store.items.push(x)`) and components re-render automatically.
-> Deep nested + array reactivity, vanilla (outside-React) subscriptions, optional
-> localStorage persistence with versioned migrations. Zero dependencies.
+> Deep nested + array reactivity, vanilla (outside-React) subscriptions, one-line
+> time travel (undo/redo), optional localStorage persistence with versioned
+> migrations. Zero dependencies.
 
 Key facts for assistants:
 - Install: `npm install h-state`. React `>=16.8` peer dependency.
 - Entry: `import { createStore, batch } from 'h-state'`.
-- `createStore(initial, methodCreators, persistOptions?)` returns `{ useStore, store }`.
+- `createStore(initial, methodCreators, persistOptions?, storeOptions?)` returns `{ useStore, store }`.
+- Time travel: pass `{ history: true }` as the 4th arg; use `store.$undo()`, `$redo()`, `$history()`.
 - Methods are creators: `(store) => (args) => void`.
 - Tracked array methods: push, pop, shift, unshift, splice, sort, reverse, fill, copyWithin.
 - NOT tracked: direct index assignment (`arr[0]=x`) and `arr.length=n` — use splice or reassign.
@@ -26,5 +28,6 @@ Key facts for assistants:
 - `useStore()` / `useStore(selector, equalityFn?)`
 - `store.$getState()`, `store.$subscribe(fn)`, `store.$subscribeWithSelector(sel, fn, eq?)`
 - `store.$merge(partial)`, `store.$update()`, `store.$persist()`, `store.$clearPersist()`, `store.$reset()`
+- `store.$undo()`, `store.$redo()`, `store.$history()`, `store.$clearHistory()` (requires `{ history: true }`)
 - `batch(fn)`
-- Types: `PersistOptions`, `StoreType`, `MethodCreators`
+- Types: `PersistOptions`, `StoreType`, `MethodCreators`, `StoreOptions`, `HistoryOptions`, `HistoryState`
