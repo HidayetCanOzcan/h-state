@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "ignoreDeprecations": "6.0",
     "target": "es6",
     "module": "esnext",
     "lib": ["dom", "esnext"],
@@ -17,6 +18,7 @@
     "downlevelIteration": true,
     "declarationDir": "dist",
     "outDir": "dist",
+    "rootDir": "src",
     "baseUrl": ".",
     "types": ["node"],
     "paths": {
