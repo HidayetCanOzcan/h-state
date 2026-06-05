@@ -551,14 +551,21 @@ export function createStore<
 		selector?: (s: StoreType<T, M>) => R,
 		equalityFn: (a: R, b: R) => boolean = Object.is,
 	): R | StoreType<T, M> {
-		const cacheRef = React.useRef<{ uid: number; value: R | StoreType<T, M> } | null>(null);
+		const cacheRef = React.useRef<{ uid: number; value: R } | null>(null);
 
-		const getSnapshot = (): R | StoreType<T, M> => {
+		// A single subscription drives re-renders. With NO selector the reactive
+		// value is the stable `store` reference itself, which cannot double as the
+		// change signal — useSyncExternalStore bails out on Object.is-equal
+		// snapshots, so the component would never re-render. Instead we snapshot
+		// the version `uid` (which advances on every update) and hand back the
+		// live `store`. With a selector we snapshot the memoised selected slice.
+		const getSnapshot = (): R | number => {
 			const uid = signal.get();
+			if (!selector) return uid;
 			const cached = cacheRef.current;
 			if (cached && cached.uid === uid) return cached.value;
-			const next = selector ? selector(store) : store;
-			if (cached && selector && equalityFn(cached.value as R, next as R)) {
+			const next = selector(store);
+			if (cached && equalityFn(cached.value, next)) {
 				cacheRef.current = { uid, value: cached.value };
 				return cached.value;
 			}
@@ -566,7 +573,8 @@ export function createStore<
 			return next;
 		};
 
-		return React.useSyncExternalStore(subscribeToSignal, getSnapshot, getSnapshot);
+		const snapshot = React.useSyncExternalStore(subscribeToSignal, getSnapshot, getSnapshot);
+		return selector ? (snapshot as R) : store;
 	}
 
 	return { useStore };
