@@ -71,6 +71,7 @@ export function Docs({ onBack }: DocsProps) {
             <a href="#subscriptions" className="docs-nav-link">Subscriptions</a>
             <a href="#time-travel" className="docs-nav-link">Time Travel</a>
             <a href="#cross-tab" className="docs-nav-link">Cross-Tab Sync</a>
+            <a href="#transactions" className="docs-nav-link">Transactions</a>
             <a href="#persistence" className="docs-nav-link">Persistence</a>
             <a href="#batch" className="docs-nav-link">Batch Updates</a>
             <a href="#typescript" className="docs-nav-link">TypeScript</a>
@@ -338,6 +339,37 @@ store.$destroy(); // close the channel when done`}</pre>
               (or <code>"h-state"</code>). Remote updates are applied without re-broadcasting (no
               feedback loops) and don't pollute undo history. Combine with persistence so a fresh
               tab loads the last state, then stays live via sync. Safe no-op on SSR / unsupported browsers.
+            </div>
+          </section>
+
+          {/* Atomic Transactions */}
+          <section id="transactions" className="docs-section">
+            <h2>Atomic Transactions</h2>
+            <p>
+              Run a group of mutations as a single unit with <code>$transaction(fn)</code>. If the
+              callback throws, <strong>every change is rolled back</strong> to the pre-transaction
+              state — no half-applied updates.
+            </p>
+            <div className="code-block">
+              <pre>{`try {
+  const total = store.$transaction(() => {
+    store.balance -= amount;        // debit
+    store.history.push({ amount }); // log
+    if (store.balance < 0) {
+      throw new Error('Insufficient funds'); // 👈 full rollback
+    }
+    return store.balance;
+  });
+  console.log('New balance:', total);
+} catch (err) {
+  // state is exactly as before the transaction
+}`}</pre>
+            </div>
+            <div className="info-box">
+              <strong>💡 Tip:</strong> on success all writes commit as one re-render and one undo
+              step (with <code>{'{ history: true }'}</code>). On failure the original error is
+              re-thrown after rollback. Nested transactions are supported — an inner rollback won't
+              undo the outer one.
             </div>
           </section>
 

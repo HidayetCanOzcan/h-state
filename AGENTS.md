@@ -70,6 +70,7 @@ Built-in store methods (always present on `store`):
 - `$history(): { canUndo, canRedo, past, future }` — wire up undo/redo buttons.
 - `$clearHistory()` — empty the undo/redo stacks (state unchanged).
 - `$destroy()` — close the cross-tab BroadcastChannel (requires `{ syncTabs: true }`); safe to call repeatedly.
+- `$transaction<R>(fn): R` — run mutations atomically; if `fn` throws, all changes roll back and the error re-throws. Commits as one re-render and one undo step; returns `fn`'s result.
 
 ## 4. Patterns
 
@@ -161,6 +162,17 @@ const { useStore, store } = createStore(initial, methods,
 store.$destroy(); // close the channel when done
 ```
 
+**Pattern 10 — Atomic transaction (rollback on throw)**
+
+```ts
+const result = store.$transaction(() => {
+  store.balance -= amount;
+  store.log.push(entry);
+  if (store.balance < 0) throw new Error('overdraft'); // → full rollback, error re-thrown
+  return store.balance;
+});
+```
+
 ## 5. Decision tree
 
 - Need component reactivity, simplest case → `const store = useStore()` and read fields directly.
@@ -172,6 +184,7 @@ store.$destroy(); // close the channel when done
 - Persist to localStorage → pass `persistOptions` (3rd arg); evolve schema with `version` + `migrate`.
 - Need undo/redo → pass `{ history: true }` as the **4th** arg; use `$undo`/`$redo`/`$history`. History is OFF by default.
 - Need state shared across browser tabs → pass `{ syncTabs: true }` (4th arg). Channel defaults to persist `key` or `"h-state"`. Call `$destroy()` to stop.
+- Need all-or-nothing mutations → wrap them in `store.$transaction(fn)`; throwing inside `fn` rolls everything back.
 
 ## 6. Common mistakes (❌ → ✅)
 

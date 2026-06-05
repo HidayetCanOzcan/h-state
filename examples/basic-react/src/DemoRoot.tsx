@@ -3,9 +3,10 @@ import ArrayReactivityDemo from './ArrayReactivityDemo';
 import SubscriptionsDemo from './SubscriptionsDemo';
 import TimeTravelDemo from './TimeTravelDemo';
 import CrossTabDemo from './CrossTabDemo';
+import TransactionsDemo from './TransactionsDemo';
 import './playground.css';
 
-type Tab = 'arrays' | 'subscriptions' | 'timetravel' | 'crosstab';
+type Tab = 'arrays' | 'subscriptions' | 'timetravel' | 'crosstab' | 'transactions';
 
 function DemoRoot() {
   const [tab, setTab] = useState<Tab>('arrays');
@@ -41,12 +42,20 @@ function DemoRoot() {
         >
           📡 Cross-Tab Sync
         </button>
+        <button
+          type="button"
+          onClick={() => setTab('transactions')}
+          className={`pg-tab${tab === 'transactions' ? ' active' : ''}`}
+        >
+          🔒 Transactions
+        </button>
       </div>
 
       {tab === 'arrays' && <ArrayReactivityDemo />}
       {tab === 'subscriptions' && <SubscriptionsDemo />}
       {tab === 'timetravel' && <TimeTravelDemo />}
       {tab === 'crosstab' && <CrossTabDemo />}
+      {tab === 'transactions' && <TransactionsDemo />}
     </div>
   );
 }

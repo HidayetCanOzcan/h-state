@@ -18,7 +18,7 @@ function App() {
       // Show docs if hash is #docs or starts with #docs (for section anchors)
       // Also show docs if it's a docs section anchor like #installation
       const docsSections = ['installation', 'quick-start', 'basic-usage', 'nested-objects', 
-        'arrays', 'subscriptions', 'time-travel', 'cross-tab', 'methods', 'persistence', 'batch', 'typescript', 'nextjs', 
+        'arrays', 'subscriptions', 'time-travel', 'cross-tab', 'transactions', 'methods', 'persistence', 'batch', 'typescript', 'nextjs', 
         'examples', 'best-practices', 'migration', 'faq', 'api'];
       const isDocsSection = docsSections.some(s => hash === `#${s}`);
       setShowDocs(hash === '#docs' || isDocsSection);
@@ -106,7 +106,7 @@ function App() {
       <section className="hero">
         <div className="container">
           <div className="hero-badge">
-            <span>v2.7</span> • Lightweight State Management
+            <span>v2.8</span> • Lightweight State Management
           </div>
           
           <h1 className="hero-title">

@@ -83,6 +83,13 @@ export type StoreType<
 		$history: () => HistoryState;
 		/** Close the cross-tab BroadcastChannel (if any). Safe to call multiple times. */
 		$destroy: () => void;
+		/**
+		 * Run a set of mutations atomically. All writes are coalesced into a single
+		 * re-render and recorded as one undo step (when history is enabled). If `fn`
+		 * throws, every mutation it made is rolled back to the pre-transaction state
+		 * and the error is re-thrown. Returns whatever `fn` returns on success.
+		 */
+		$transaction: <R>(fn: () => R) => R;
 	};
 
 export type MethodCreators<

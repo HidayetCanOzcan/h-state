@@ -18,52 +18,22 @@ A lightweight and intuitive state management library for React with deep nested 
 > are bundled in the npm tarball, so Cursor / Claude Code / Copilot / Codex can read them from
 > `node_modules/h-state/`. An installable Agent Skill lives in [`skills/h-state/SKILL.md`](./skills/h-state/SKILL.md).
 
-## What's New in v2.7.0 🎉
-
-- ⏳ **Time Travel (undo / redo) — in one line.** Opt in with `{ history: true }` and get full undo/redo for free:
-  - `store.$undo()` / `store.$redo()` → step back/forward through state; return `true` if a step was taken.
-  - `store.$history()` → `{ canUndo, canRedo, past, future }` for wiring up buttons.
-  - `store.$clearHistory()` → drop the stacks without touching state. `limit` caps memory (default 100).
-  - Works with primitives, nested objects, and arrays. Zero extra dependencies.
-- 📡 **Cross-Tab Sync — also one line.** Opt in with `{ syncTabs: true }` and state stays in sync across every open tab/window via `BroadcastChannel`:
-  - No setup, no server, no extra deps. Defaults the channel to your persistence `key`.
-  - `store.$destroy()` closes the channel when you're done.
-  - Safe no-op on SSR / browsers without `BroadcastChannel`.
-
-### Previously in v2.5.0
-
-- 🔌 **Vanilla Subscriptions (use outside React)**: `createStore` now also returns the live `store` so you can read and react to state anywhere — effects, loggers, WebSocket bridges, tests.
-  - `store.$getState()` → plain, non-reactive deep snapshot (state keys only).
-  - `store.$subscribe((next, prev) => …)` → fires on every change with new/previous snapshots; returns an unsubscribe.
-  - `store.$subscribeWithSelector(selector, listener, equalityFn?)` → fires only when the selected slice changes.
-- 🐛 **Array element fix**: nested mutations on **newly pushed/unshifted/spliced** objects (e.g. `items[i].done = true`) now re-render correctly — fresh raw elements are wrapped on insertion.
-
-### Previously in v2.2.0
-
-- 🧬 **Reactive Arrays**: `push / pop / shift / unshift / splice / sort / reverse / fill / copyWithin` now trigger re-renders and persistence automatically — no Proxy, no wrapper types, `Array.isArray` stays `true`.
-- 🧩 **Selector-Based Subscriptions**: `useStore(selector, equalityFn?)` re-renders only when the selected slice changes. Powered by `useSyncExternalStore` for concurrent-mode safety.
-- 🧳 **Versioned Persistence + Deep Merge**: `version` + `migrate` options upgrade stored payloads; nested objects deep-merge with initial state so newly added fields keep their defaults.
-- ♻️ **`$reset()`**: One-call return to initial state + clears persisted payload.
-- ⚙️ **Microtask-Coalesced Persist**: Many synchronous mutations collapse into a single `localStorage` write per tick.
-- 🪶 **Batch Coalescing**: Within `batch(...)` only a single flush is scheduled per store regardless of how many setters fire.
-
-### Previously in v2.1.0
-
-- 💾 **localStorage Persistence**: Automatic state persistence with customizable options
-- ✨ **Deep Nested Reactivity**: Unlimited depth object reactivity with no Proxy overhead
-- ⚡ **Batch Updates**: Group multiple state changes into single re-render
-- 🚀 **Performance Optimized**: WeakMap caching and shallow comparison
-- 🎯 **Signal-Based Architecture**: Efficient change detection with UID tracking
-- 📦 **Zero Dependencies**: Pure TypeScript implementation
-
 ## Features
 
-- 🪶 **Lightweight**: ~3KB minified, zero dependencies
-- ⚡ **Simple API**: No boilerplate, just direct property access
-- 🔄 **Deep Reactivity**: Nested objects automatically reactive to any depth
-- 🎯 **Type-Safe**: Full TypeScript support with perfect type inference
-- 🚀 **High Performance**: Batch updates, shallow comparison, smart caching
-- 🛠️ **Flexible**: Works with any React project, any component pattern
+Everything below ships in the box — no plugins, no middleware, no providers.
+
+- ✨ **Direct-mutation reactivity** — write `store.count++`, `store.user.name = 'x'`, `store.items.push(y)` and components re-render automatically. No reducers, no actions, no `set()`.
+- 🧬 **Deep nested + array reactivity** — unlimited object depth, no Proxy overhead. Tracked array methods (`push / pop / shift / unshift / splice / sort / reverse / fill / copyWithin`) re-render and persist automatically; `Array.isArray` stays `true`.
+- 🧩 **Fine-grained selectors** — `useStore(selector, equalityFn?)` re-renders only when the selected slice changes. Built on `useSyncExternalStore`, safe with React 18 concurrent features.
+- 🔌 **Use outside React** — `createStore` also returns the live `store`: `$getState()`, `$subscribe()`, and `$subscribeWithSelector()` for loggers, WebSocket bridges, tests, anywhere.
+- ⏳ **Time travel (undo / redo)** — opt in with `{ history: true }`: `$undo()`, `$redo()`, `$history()`, `$clearHistory()`. Works with primitives, objects, and arrays.
+- 📡 **Cross-tab sync** — opt in with `{ syncTabs: true }`: state stays live across every tab/window via `BroadcastChannel`. No server, no extra deps. `$destroy()` closes the channel.
+- � **Atomic transactions** — `$transaction(fn)` runs a batch of mutations as one unit; if `fn` throws, **every change is rolled back** automatically. Commits as a single re-render and a single undo step.
+- 💾 **Persistence with migrations** — `localStorage` out of the box with `version` + `migrate`, deep-merge of new fields, microtask-coalesced writes, custom serialize/deserialize.
+- 🪶 **Batching** — `batch(fn)` collapses many mutations into a single re-render/flush.
+- 🎯 **Type-safe** — full TypeScript inference for state and methods.
+- � **Zero dependencies** — ~2KB gzipped, tree-shakeable, SSR-safe. React is the only peer.
+- 🤖 **First-class AI support** — `AGENTS.md`, `llms.txt`, and an installable Agent Skill ship in the tarball.
 
 ## Installation
 
@@ -525,6 +495,7 @@ Every store instance includes:
 - **`$history()`**: `{ canUndo, canRedo, past, future }`
 - **`$clearHistory()`**: Empty the undo/redo stacks
 - **`$destroy()`**: Close the cross-tab `BroadcastChannel` (requires `{ syncTabs: true }`)
+- **`$transaction(fn)`**: Run mutations atomically; rolls back all changes if `fn` throws → returns `fn`'s result
 
 **Example:**
 ```typescript
@@ -609,6 +580,7 @@ Selectors use `useSyncExternalStore` under the hood — safe with React 18 concu
 | Tracked array methods (`push`/`splice`) | ✅ | ❌ | ❌ | ❌ |
 | Built-in undo/redo (time travel) | ✅ | ❌ (middleware) | ❌ (middleware) | ❌ |
 | Cross-tab sync | ✅ | ❌ (middleware) | ❌ | ❌ |
+| Atomic transactions (auto rollback) | ✅ | ❌ | ❌ | ❌ |
 | localStorage persistence + migrations | ✅ | ⚠️ (middleware) | ⚠️ | ⚠️ |
 | Proxy-free | ✅ | ✅ | ✅ | ✅ |
 | Dependencies | **0** | 0 | several | 0 |
@@ -679,6 +651,33 @@ store.$destroy();
 - Remote updates are applied without re-broadcasting (no feedback loops) and don't pollute undo history.
 - Combine with `{ enabled: true }` persistence so a brand-new tab loads the last state, then stays live via sync.
 - Gracefully no-ops during SSR or in browsers without `BroadcastChannel`.
+
+## Atomic Transactions
+
+Run a group of mutations as a single unit. If anything throws, **every change is rolled back** to the pre-transaction state — no half-applied updates:
+
+```typescript
+try {
+  const total = store.$transaction(() => {
+    store.balance -= amount;       // debit
+    store.history.push({ amount }); // log
+    if (store.balance < 0) {
+      throw new Error('Insufficient funds'); // 👈 triggers full rollback
+    }
+    return store.balance;
+  });
+  console.log('New balance:', total);
+} catch (err) {
+  // store.balance and store.history are exactly as before the transaction
+}
+```
+
+**Notes**
+
+- On success: all writes commit as **one** re-render and **one** undo step (when `{ history: true }`).
+- On failure: the original error is re-thrown after rollback; subscribers see the restored state.
+- Returns whatever the callback returns, so you can compute a value inside the transaction.
+- Nested transactions are supported — an inner rollback won't undo the outer one.
 
 ## Vanilla Subscriptions (outside React)
 

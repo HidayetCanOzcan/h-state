@@ -681,6 +681,38 @@ export function createStore<
 		}
 	};
 
+	(store as StoreType<T, M>).$transaction = <R>(fn: () => R): R => {
+		// Capture the committed state, then suppress history/broadcast for every
+		// intermediate write so the whole block lands as one atomic step.
+		const snapshot = getPlainState();
+		const prevInternal = isInternalApply;
+		isInternalApply = true;
+		let result: R;
+		try {
+			result = batch(fn);
+		} catch (error) {
+			isInternalApply = prevInternal;
+			// Roll back any partial mutations to the pre-transaction state.
+			applySnapshot(snapshot);
+			throw error;
+		}
+		isInternalApply = prevInternal;
+		// Commit: record a single history entry + broadcast once (only if changed).
+		const nextSnapshot = getPlainState();
+		if (!plainEquals(snapshot, nextSnapshot)) {
+			if (historyEnabled) {
+				past.push(snapshot);
+				if (past.length > historyLimit) past.shift();
+				future.length = 0;
+				lastSnapshot = nextSnapshot;
+			}
+			if (broadcastChannel && !prevInternal) {
+				broadcastChannel.postMessage({ __hs_sync: true, state: nextSnapshot });
+			}
+		}
+		return result;
+	};
+
 	(store as StoreType<T, M>).$undo = () => {
 		if (!historyEnabled || past.length === 0) return false;
 		const previous = past.pop() as T;

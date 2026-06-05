@@ -101,10 +101,27 @@ store.$destroy(); // close the channel when done
 Channel name defaults to the persistence `key` (or `"h-state"`). Remote updates don't echo back and
 don't pollute undo history. No-ops on SSR / unsupported browsers.
 
+## Atomic transactions
+
+`$transaction(fn)` runs mutations as one unit. If `fn` throws, every change rolls back and the
+error re-throws. Commits as one re-render and one undo step; returns whatever `fn` returns.
+
+```ts
+const balance = store.$transaction(() => {
+  store.balance -= amount;
+  store.log.push(entry);
+  if (store.balance < 0) throw new Error('overdraft'); // → full rollback
+  return store.balance;
+});
+```
+
+Nested transactions are supported — an inner rollback won't undo the outer one.
+
 ## Built-in store methods
 
 `$getState`, `$subscribe`, `$subscribeWithSelector`, `$merge(partial)`, `$update`,
-`$persist`, `$clearPersist`, `$reset`, `$undo`, `$redo`, `$history`, `$clearHistory`, `$destroy`.
+`$persist`, `$clearPersist`, `$reset`, `$undo`, `$redo`, `$history`, `$clearHistory`, `$destroy`,
+`$transaction`.
 
 ## Batch & persistence
 
