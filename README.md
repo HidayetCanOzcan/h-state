@@ -8,6 +8,11 @@ A lightweight and intuitive state management library for React with deep nested 
 
 🎮 **[Live Demo & Examples](https://hidayetcanozcan.github.io/h-state)**
 
+> **🤖 AI / LLM support:** This package ships first-class guidance for AI coding agents.
+> [`AGENTS.md`](./AGENTS.md) (exact API, patterns, and ❌/✅ mistakes) and [`llms.txt`](./llms.txt)
+> are bundled in the npm tarball, so Cursor / Claude Code / Copilot / Codex can read them from
+> `node_modules/h-state/`. An installable Agent Skill lives in [`skills/h-state/SKILL.md`](./skills/h-state/SKILL.md).
+
 ## What's New in v2.5.0 🎉
 
 - 🔌 **Vanilla Subscriptions (use outside React)**: `createStore` now also returns the live `store` so you can read and react to state anywhere — effects, loggers, WebSocket bridges, tests.
