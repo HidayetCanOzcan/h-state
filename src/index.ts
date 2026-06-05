@@ -103,7 +103,26 @@ function markUpdated<T extends Record<string, unknown>>(
 }
 
 const reactiveCache = new WeakMap<object, object>();
+const reactiveObjects = new WeakSet<object>();
 const trackedArrays = new WeakSet<unknown[]>();
+
+function wrapArrayElements(
+	arr: unknown[],
+	rootSignal: Signal<number>,
+	rootState: ReactiveState<Record<string, unknown>>,
+): void {
+	for (let i = 0; i < arr.length; i++) {
+		const el = arr[i];
+		if (el === null || typeof el !== "object") continue;
+		if (el instanceof Date || el instanceof RegExp) continue;
+		if (Array.isArray(el)) {
+			trackArray(el as unknown[], rootSignal, rootState);
+		} else if (!reactiveObjects.has(el as object)) {
+			// Newly added (raw) element — wrap it so nested mutations propagate.
+			arr[i] = makeReactive(el, rootSignal, rootState);
+		}
+	}
+}
 
 const ARRAY_MUTATION_METHODS = [
 	"push",
@@ -130,6 +149,9 @@ function trackArray(
 		Object.defineProperty(arr, method, {
 			value: function (this: unknown[], ...args: unknown[]) {
 				const result = original.apply(this, args);
+				// Wrap any newly inserted (raw) object elements so their nested
+				// mutations stay reactive — push/unshift/splice/fill add fresh items.
+				wrapArrayElements(this, rootSignal, rootState);
 				markUpdated(rootState, rootSignal);
 				return result;
 			},
@@ -140,16 +162,7 @@ function trackArray(
 	}
 
 	// Eagerly wrap object/array elements so nested mutations propagate.
-	for (let i = 0; i < arr.length; i++) {
-		const el = arr[i];
-		if (el === null || typeof el !== "object") continue;
-		if (el instanceof Date || el instanceof RegExp) continue;
-		if (Array.isArray(el)) {
-			trackArray(el as unknown[], rootSignal, rootState);
-		} else {
-			arr[i] = makeReactive(el, rootSignal, rootState);
-		}
-	}
+	wrapArrayElements(arr, rootSignal, rootState);
 
 	return arr;
 }
@@ -235,6 +248,7 @@ function makeReactive<T>(
 	}
 
 	reactiveCache.set(obj as object, reactiveObj as object);
+	reactiveObjects.add(reactiveObj as object);
 
 	return reactiveObj;
 }
@@ -325,6 +339,7 @@ export function createStore<
 	persistOptions?: PersistOptions,
 ): {
 	useStore: () => StoreType<T, M>;
+	store: StoreType<T, M>;
 } {
 	// Parse persistence options with defaults
 	const persist = {
@@ -513,6 +528,58 @@ export function createStore<
 		}
 	};
 
+	// Deep-clone a value into plain data, reading THROUGH the reactive layer.
+	// Nested mutations live in the reactive wrappers (closures), not on the raw
+	// internalState, so we must traverse via the reactive accessors.
+	const toPlain = (value: unknown): unknown => {
+		if (value === null || typeof value !== "object") return value;
+		if (value instanceof Date || value instanceof RegExp) return value;
+		if (Array.isArray(value)) return value.map((el) => toPlain(el));
+		const out: Record<string, unknown> = {};
+		for (const k in value as Record<string, unknown>) {
+			out[k] = toPlain((value as Record<string, unknown>)[k]);
+		}
+		return out;
+	};
+
+	// Build a plain, non-reactive snapshot containing only state keys.
+	const getPlainState = (): T => {
+		const snapshot: Record<string, unknown> = {};
+		for (const key in initial) {
+			if (Object.hasOwn(initial, key)) {
+				snapshot[key] = toPlain((store as Record<string, unknown>)[key]);
+			}
+		}
+		return snapshot as T;
+	};
+
+	(store as StoreType<T, M>).$getState = getPlainState;
+
+	(store as StoreType<T, M>).$subscribe = (listener) => {
+		let prev = getPlainState();
+		return signal.subscribe(() => {
+			const next = getPlainState();
+			const previous = prev;
+			prev = next;
+			listener(next, previous);
+		});
+	};
+
+	(store as StoreType<T, M>).$subscribeWithSelector = (
+		selector,
+		listener,
+		equalityFn = Object.is,
+	) => {
+		let prevSelected = selector(getPlainState());
+		return signal.subscribe(() => {
+			const nextSelected = selector(getPlainState());
+			if (equalityFn(prevSelected, nextSelected)) return;
+			const previous = prevSelected;
+			prevSelected = nextSelected;
+			listener(nextSelected, previous);
+		});
+	};
+
 	(store as StoreType<T, M>).$reset = () => {
 		batch(() => {
 			for (const key in initial) {
@@ -577,7 +644,7 @@ export function createStore<
 		return selector ? (snapshot as R) : store;
 	}
 
-	return { useStore };
+	return { useStore, store };
 }
 
 // Re-export types for convenience

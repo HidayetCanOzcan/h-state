@@ -7,7 +7,15 @@ A lightweight and intuitive state management library for React with deep nested 
 
 🎮 **[Live Demo & Examples](https://hidayetcanozcan.github.io/h-state)**
 
-## What's New in v2.2.0 🎉
+## What's New in v2.5.0 🎉
+
+- 🔌 **Vanilla Subscriptions (use outside React)**: `createStore` now also returns the live `store` so you can read and react to state anywhere — effects, loggers, WebSocket bridges, tests.
+  - `store.$getState()` → plain, non-reactive deep snapshot (state keys only).
+  - `store.$subscribe((next, prev) => …)` → fires on every change with new/previous snapshots; returns an unsubscribe.
+  - `store.$subscribeWithSelector(selector, listener, equalityFn?)` → fires only when the selected slice changes.
+- 🐛 **Array element fix**: nested mutations on **newly pushed/unshifted/spliced** objects (e.g. `items[i].done = true`) now re-render correctly — fresh raw elements are wrapped on insertion.
+
+### Previously in v2.2.0
 
 - 🧬 **Reactive Arrays**: `push / pop / shift / unshift / splice / sort / reverse / fill / copyWithin` now trigger re-renders and persistence automatically — no Proxy, no wrapper types, `Array.isArray` stays `true`.
 - 🧩 **Selector-Based Subscriptions**: `useStore(selector, equalityFn?)` re-renders only when the selected slice changes. Powered by `useSyncExternalStore` for concurrent-mode safety.
@@ -486,6 +494,10 @@ Every store instance includes:
 - **`$update()`**: Manually trigger re-render  
 - **`$persist()`**: Force immediate save to localStorage (if persistence enabled)
 - **`$clearPersist()`**: Clear persisted data from localStorage
+- **`$reset()`**: Restore initial state and clear persisted payload
+- **`$getState()`**: Plain, non-reactive deep snapshot (state keys only)
+- **`$subscribe(listener)`**: Subscribe to any change outside React → unsubscribe fn
+- **`$subscribeWithSelector(selector, listener, equalityFn?)`**: Subscribe to a derived slice → unsubscribe fn
 
 **Example:**
 ```typescript
@@ -561,6 +573,49 @@ const visibleTodos = useStore(
 ```
 
 Selectors use `useSyncExternalStore` under the hood — safe with React 18 concurrent features.
+
+## Vanilla Subscriptions (outside React)
+
+`createStore` returns the live `store` alongside `useStore`, so you can read and react to state **anywhere** — outside components, in plain modules, loggers, WebSocket/IndexedDB bridges, or tests.
+
+```typescript
+const { useStore, store } = createStore<State, Methods>(
+  { count: 0, user: { name: 'Ada' }, items: [] as number[] },
+  {
+    increment: (s) => () => { s.count++; },
+    rename: (s) => (name: string) => { s.user.name = name; },
+    add: (s) => (n: number) => { s.items.push(n); },
+  }
+);
+
+// 1. Plain, non-reactive deep snapshot (state keys only — no methods/symbols)
+const snapshot = store.$getState();        // { count: 0, user: { name: 'Ada' }, items: [] }
+
+// 2. Subscribe to ANY change — receives next + previous snapshots
+const unsubscribe = store.$subscribe((next, prev) => {
+  console.log('changed:', prev.count, '→', next.count);
+});
+
+// 3. Subscribe to a derived slice — fires only when it actually changes
+const stop = store.$subscribeWithSelector(
+  (s) => s.user.name,
+  (name, prevName) => console.log(`name: ${prevName} → ${name}`),
+  // optional equalityFn (defaults to Object.is)
+);
+
+store.increment();      // $subscribe fires; selector (name) does NOT
+store.rename('Grace');  // both fire
+
+unsubscribe();
+stop();
+```
+
+**Notes**
+
+- `$getState()` returns a deep clone read through the reactive layer, so nested mutations are always reflected.
+- Subscriptions are batch-aware: inside `batch(...)` listeners fire once per flush.
+- `$subscribeWithSelector` skips notifications when the selected value is unchanged per `equalityFn`.
+- Both subscribe methods return an unsubscribe function.
 
 ## Versioned Persistence & Migrations
 

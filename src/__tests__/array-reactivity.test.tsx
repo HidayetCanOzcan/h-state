@@ -16,6 +16,7 @@ type Methods = {
 	spliceFirst: () => void;
 	sortByText: () => void;
 	toggleFirst: () => void;
+	toggleLast: () => void;
 	editFirstText: (text: string) => void;
 	indexSet: (t: Todo) => void;
 };
@@ -44,6 +45,10 @@ function makeStore() {
 			toggleFirst: (store) => () => {
 				store.todos[0].done = !store.todos[0].done;
 			},
+			toggleLast: (store) => () => {
+				const last = store.todos[store.todos.length - 1];
+				if (last) last.done = !last.done;
+			},
 			editFirstText: (store) => (text: string) => {
 				store.todos[0].text = text;
 			},
@@ -62,7 +67,9 @@ function View({ useStore }: { useStore: ReturnType<typeof makeStore>["useStore"]
 			<span data-testid="len">{store.todos.length}</span>
 			<span data-testid="first">{store.todos[0]?.text ?? "-"}</span>
 			<span data-testid="first-done">{String(store.todos[0]?.done)}</span>
+			<span data-testid="last-done">{String(store.todos[store.todos.length - 1]?.done)}</span>
 			<button type="button" onClick={() => store.push({ id: 3, text: "gamma", done: false })}>push</button>
+			<button type="button" onClick={store.toggleLast}>toggle-last</button>
 			<button type="button" onClick={store.pop}>pop</button>
 			<button type="button" onClick={store.spliceFirst}>splice</button>
 			<button type="button" onClick={store.sortByText}>sort</button>
@@ -107,6 +114,16 @@ describe("h-state array reactivity (Proxy-free)", () => {
 		expect(screen.getByTestId("first-done")).toHaveTextContent("true");
 		fireEvent.click(screen.getByText("edit"));
 		expect(screen.getByTestId("first")).toHaveTextContent("renamed");
+	});
+
+	it("toggling a NEWLY pushed element re-renders (regression: raw element wrapping)", () => {
+		const { useStore } = makeStore();
+		render(<View useStore={useStore} />);
+		// Push a fresh raw item, then mutate its nested `done` flag.
+		fireEvent.click(screen.getByText("push"));
+		expect(screen.getByTestId("last-done")).toHaveTextContent("false");
+		fireEvent.click(screen.getByText("toggle-last"));
+		expect(screen.getByTestId("last-done")).toHaveTextContent("true");
 	});
 
 	it("keeps Array.isArray true (no wrapper type)", () => {

@@ -1,9 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import ArrayReactivityDemo from './ArrayReactivityDemo';
+import DemoRoot from './DemoRoot';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <ArrayReactivityDemo />
+    <DemoRoot />
   </React.StrictMode>
 );

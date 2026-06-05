@@ -5,6 +5,9 @@ export type ReactiveState<T> = T & {
 	readonly [STATE_ID]: number;
 };
 
+export type StoreListener<T> = (state: T, prevState: T) => void;
+export type SelectorListener<R> = (selected: R, prevSelected: R) => void;
+
 export type StoreType<
 	T extends Record<string, unknown>,
 	M extends Record<string, unknown>,
@@ -15,6 +18,25 @@ export type StoreType<
 		$persist: () => void;
 		$clearPersist: () => void;
 		$reset: () => void;
+		/**
+		 * Returns a plain, non-reactive snapshot of the current state (state keys only,
+		 * methods and internal symbols excluded). Safe to use anywhere, including outside React.
+		 */
+		$getState: () => T;
+		/**
+		 * Subscribe to any state change from outside React. The listener receives the new and
+		 * previous plain snapshots. Returns an unsubscribe function.
+		 */
+		$subscribe: (listener: StoreListener<T>) => () => void;
+		/**
+		 * Subscribe to a derived slice. The listener fires only when the selected value changes
+		 * according to `equalityFn` (defaults to Object.is). Returns an unsubscribe function.
+		 */
+		$subscribeWithSelector: <R>(
+			selector: (state: T) => R,
+			listener: SelectorListener<R>,
+			equalityFn?: (a: R, b: R) => boolean,
+		) => () => void;
 	};
 
 export type MethodCreators<
