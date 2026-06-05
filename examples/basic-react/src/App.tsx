@@ -3,11 +3,13 @@ import { useStore } from './store/basicStore';
 import { useState, useEffect } from 'react';
 import { Docs } from './Docs';
 import { IntelliSenseDemo } from './IntelliSenseDemo';
+import DemoRoot from './DemoRoot';
 
 function App() {
   const store = useStore();
   const [copied, setCopied] = useState(false);
   const [showDocs, setShowDocs] = useState(false);
+  const [showPlayground, setShowPlayground] = useState(false);
 
   // Hash-based routing
   useEffect(() => {
@@ -20,6 +22,7 @@ function App() {
         'examples', 'best-practices', 'migration', 'faq', 'api'];
       const isDocsSection = docsSections.some(s => hash === `#${s}`);
       setShowDocs(hash === '#docs' || isDocsSection);
+      setShowPlayground(hash === '#playground');
     };
     handleHash();
     window.addEventListener('hashchange', handleHash);
@@ -31,6 +34,11 @@ function App() {
     window.scrollTo(0, 0);
   };
 
+  const goToPlayground = () => {
+    window.location.hash = '#playground';
+    window.scrollTo(0, 0);
+  };
+
   const goHome = () => {
     window.location.hash = '';
     window.scrollTo(0, 0);
@@ -38,6 +46,24 @@ function App() {
 
   if (showDocs) {
     return <Docs onBack={goHome} />;
+  }
+
+  if (showPlayground) {
+    return (
+      <div className="landing">
+        <nav className="navbar">
+          <div className="container navbar-content">
+            <button onClick={goHome} className="navbar-logo" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+              ← h-state
+            </button>
+            <div className="navbar-links">
+              <button onClick={goToDocs} className="navbar-link">Docs</button>
+            </div>
+          </div>
+        </nav>
+        <DemoRoot />
+      </div>
+    );
   }
 
   const copyInstall = () => {
@@ -59,6 +85,7 @@ function App() {
           <a href="#" className="navbar-logo">h-state</a>
           <div className="navbar-links">
             <button onClick={goToDocs} className="navbar-link">Docs</button>
+            <button onClick={goToPlayground} className="navbar-link">Playground</button>
             <a href="#demo" className="navbar-link">Demo</a>
             <a 
               href="https://github.com/HidayetCanOzcan/h-state" 
@@ -79,7 +106,7 @@ function App() {
       <section className="hero">
         <div className="container">
           <div className="hero-badge">
-            <span>v2.1</span> • Lightweight State Management
+            <span>v2.5</span> • Lightweight State Management
           </div>
           
           <h1 className="hero-title">
@@ -96,6 +123,9 @@ function App() {
             <a href="#demo" className="btn btn-primary">
               Try It Live ↓
             </a>
+            <button onClick={goToPlayground} className="btn btn-secondary">
+              Playground →
+            </button>
             <a href="https://github.com/HidayetCanOzcan/h-state" target="_blank" rel="noopener noreferrer" className="btn btn-secondary">
               GitHub →
             </a>
