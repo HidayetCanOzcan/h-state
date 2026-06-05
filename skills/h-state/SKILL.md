@@ -85,10 +85,26 @@ store.$clearHistory();
 Each committed change records one snapshot. Wrap multi-mutation actions in `batch(...)` so they
 become a single undo step. A new change after undo clears the redo stack.
 
+## Cross-tab sync
+
+Opt in with the **4th** `createStore` arg. State stays in sync across tabs via BroadcastChannel.
+
+```ts
+const { useStore, store } = createStore(initial, methods,
+  undefined,            // persistOptions
+  { syncTabs: true },   // or { syncTabs: { channel: 'my-app' } }
+);
+
+store.$destroy(); // close the channel when done
+```
+
+Channel name defaults to the persistence `key` (or `"h-state"`). Remote updates don't echo back and
+don't pollute undo history. No-ops on SSR / unsupported browsers.
+
 ## Built-in store methods
 
 `$getState`, `$subscribe`, `$subscribeWithSelector`, `$merge(partial)`, `$update`,
-`$persist`, `$clearPersist`, `$reset`, `$undo`, `$redo`, `$history`, `$clearHistory`.
+`$persist`, `$clearPersist`, `$reset`, `$undo`, `$redo`, `$history`, `$clearHistory`, `$destroy`.
 
 ## Batch & persistence
 

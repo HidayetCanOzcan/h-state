@@ -330,6 +330,22 @@
   word-break: break-word;
 }
 
+.pg-callout {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-radius: 14px;
+  padding: 0.9rem 1.1rem;
+  margin: 0 auto 1.5rem;
+  max-width: 1000px;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
 .pg-empty {
   color: var(--text-muted);
   font-size: 0.9rem;

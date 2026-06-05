@@ -4,6 +4,11 @@ A lightweight and intuitive state management library for React with deep nested 
 
 [![npm version](https://img.shields.io/npm/v/h-state?color=cb3837&label=npm)](https://www.npmjs.com/package/h-state)
 [![npm downloads](https://img.shields.io/npm/dm/h-state?color=6366f1)](https://www.npmjs.com/package/h-state)
+[![minzipped size](https://img.shields.io/bundlephobia/minzip/h-state?color=22c55e&label=gzip)](https://bundlephobia.com/package/h-state)
+[![CI](https://github.com/HidayetCanOzcan/h-state/actions/workflows/ci.yml/badge.svg)](https://github.com/HidayetCanOzcan/h-state/actions/workflows/ci.yml)
+[![types](https://img.shields.io/npm/types/h-state?color=3178c6)](https://www.npmjs.com/package/h-state)
+[![tree shakeable](https://img.shields.io/badge/tree--shakeable-✓-22c55e)](https://bundlephobia.com/package/h-state)
+[![zero deps](https://img.shields.io/badge/dependencies-0-22c55e)](https://www.npmjs.com/package/h-state?activeTab=dependencies)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 🎮 **[Live Demo & Examples](https://hidayetcanozcan.github.io/h-state)**
@@ -20,6 +25,10 @@ A lightweight and intuitive state management library for React with deep nested 
   - `store.$history()` → `{ canUndo, canRedo, past, future }` for wiring up buttons.
   - `store.$clearHistory()` → drop the stacks without touching state. `limit` caps memory (default 100).
   - Works with primitives, nested objects, and arrays. Zero extra dependencies.
+- 📡 **Cross-Tab Sync — also one line.** Opt in with `{ syncTabs: true }` and state stays in sync across every open tab/window via `BroadcastChannel`:
+  - No setup, no server, no extra deps. Defaults the channel to your persistence `key`.
+  - `store.$destroy()` closes the channel when you're done.
+  - Safe no-op on SSR / browsers without `BroadcastChannel`.
 
 ### Previously in v2.5.0
 
@@ -515,6 +524,7 @@ Every store instance includes:
 - **`$undo()` / `$redo()`**: Time travel (requires `{ history: true }`) → returns `true` if a step was taken
 - **`$history()`**: `{ canUndo, canRedo, past, future }`
 - **`$clearHistory()`**: Empty the undo/redo stacks
+- **`$destroy()`**: Close the cross-tab `BroadcastChannel` (requires `{ syncTabs: true }`)
 
 **Example:**
 ```typescript
@@ -591,6 +601,21 @@ const visibleTodos = useStore(
 
 Selectors use `useSyncExternalStore` under the hood — safe with React 18 concurrent features.
 
+## Why h-state? (comparison)
+
+| | **h-state** | Zustand | Redux Toolkit | Jotai |
+|---|:---:|:---:|:---:|:---:|
+| Direct mutation (`store.count++`) | ✅ | ❌ (set) | ❌ (reducers) | ❌ (atoms) |
+| Tracked array methods (`push`/`splice`) | ✅ | ❌ | ❌ | ❌ |
+| Built-in undo/redo (time travel) | ✅ | ❌ (middleware) | ❌ (middleware) | ❌ |
+| Cross-tab sync | ✅ | ❌ (middleware) | ❌ | ❌ |
+| localStorage persistence + migrations | ✅ | ⚠️ (middleware) | ⚠️ | ⚠️ |
+| Proxy-free | ✅ | ✅ | ✅ | ✅ |
+| Dependencies | **0** | 0 | several | 0 |
+| Ships `AGENTS.md` for AI agents | ✅ | ❌ | ❌ | ❌ |
+
+> No reducers, no actions, no providers. Mutate state and it just re-renders.
+
 ## Time Travel (undo / redo)
 
 Opt in with the 4th `createStore` argument and get undo/redo with no extra libraries:
@@ -625,6 +650,35 @@ function Editor() {
 - A new change after an undo clears the redo stack (linear history, like every editor).
 - `limit` caps the number of retained past snapshots (default `100`).
 - History is **off by default** — zero overhead unless you enable it.
+
+## Cross-Tab Sync
+
+Keep state consistent across every open tab/window with one option — powered by the browser's `BroadcastChannel`, no server required:
+
+```typescript
+const { useStore, store } = createStore<State, Methods>(
+  { theme: 'dark', cart: [] as string[] },
+  {
+    setTheme: (s) => (t: string) => { s.theme = t; },
+    addToCart: (s) => (id: string) => { s.cart.push(id); },
+  },
+  undefined,                    // persistOptions (3rd arg)
+  { syncTabs: true },           // 👈 sync across tabs (or { syncTabs: { channel: 'my-app' } })
+);
+
+// Change in tab A → instantly reflected in tab B, C, …
+store.addToCart('sku-1');
+
+// When you're done (e.g. on unmount in a micro-frontend):
+store.$destroy();
+```
+
+**Notes**
+
+- The channel name defaults to your persistence `key` if set, otherwise `"h-state"`. Pass `{ syncTabs: { channel } }` to namespace multiple stores.
+- Remote updates are applied without re-broadcasting (no feedback loops) and don't pollute undo history.
+- Combine with `{ enabled: true }` persistence so a brand-new tab loads the last state, then stays live via sync.
+- Gracefully no-ops during SSR or in browsers without `BroadcastChannel`.
 
 ## Vanilla Subscriptions (outside React)
 

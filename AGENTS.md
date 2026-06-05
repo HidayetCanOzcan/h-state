@@ -14,12 +14,12 @@ re-render automatically. Zero dependencies. React is a peer dependency (`>=16.8`
 
 ```ts
 import { createStore, batch } from 'h-state';
-import type { PersistOptions, StoreType, MethodCreators, StoreOptions } from 'h-state';
+import type { PersistOptions, StoreType, MethodCreators, StoreOptions, SyncTabsOptions } from 'h-state';
 ```
 
 - `createStore(initial, methodCreators, persistOptions?, storeOptions?)` → `{ useStore, store }`
 - `batch(fn)` → runs `fn` and coalesces all mutations into a single re-render/flush.
-- Types: `PersistOptions`, `StoreType`, `MethodCreators`, `StoreOptions`, `HistoryOptions`, `HistoryState`.
+- Types: `PersistOptions`, `StoreType`, `MethodCreators`, `StoreOptions`, `HistoryOptions`, `HistoryState`, `SyncTabsOptions`.
 
 `createStore` returns:
 - `useStore()` — React hook. With no args returns the live store (re-renders on any change).
@@ -36,7 +36,8 @@ function createStore<
   initial: T,
   methodCreators: MethodCreators<T, M>,
   persistOptions?: PersistOptions,
-  storeOptions?: StoreOptions,   // { history?: boolean | { limit?: number } }
+  storeOptions?: StoreOptions,   // { history?: boolean | { limit?: number };
+                                 //   syncTabs?: boolean | { channel?: string } }
 ): { useStore: UseStore<T, M>; store: StoreType<T, M> };
 
 // Each method is a creator: (store) => actualFn
@@ -68,6 +69,7 @@ Built-in store methods (always present on `store`):
 - `$undo(): boolean` / `$redo(): boolean` — time travel; requires `{ history: true }`. Returns true if a step was taken.
 - `$history(): { canUndo, canRedo, past, future }` — wire up undo/redo buttons.
 - `$clearHistory()` — empty the undo/redo stacks (state unchanged).
+- `$destroy()` — close the cross-tab BroadcastChannel (requires `{ syncTabs: true }`); safe to call repeatedly.
 
 ## 4. Patterns
 
@@ -148,6 +150,17 @@ store.$undo(); store.$redo();
 const { canUndo, canRedo } = store.$history();
 ```
 
+**Pattern 9 — Cross-tab sync (BroadcastChannel), opt-in via 4th arg**
+
+```ts
+const { useStore, store } = createStore(initial, methods,
+  undefined,                              // persistOptions
+  { syncTabs: true },                     // or { syncTabs: { channel: 'my-app' } }
+);
+// changes in one tab appear in all tabs sharing the channel.
+store.$destroy(); // close the channel when done
+```
+
 ## 5. Decision tree
 
 - Need component reactivity, simplest case → `const store = useStore()` and read fields directly.
@@ -158,6 +171,7 @@ const { canUndo, canRedo } = store.$history();
 - Several writes that should be one render → wrap in `batch(...)`.
 - Persist to localStorage → pass `persistOptions` (3rd arg); evolve schema with `version` + `migrate`.
 - Need undo/redo → pass `{ history: true }` as the **4th** arg; use `$undo`/`$redo`/`$history`. History is OFF by default.
+- Need state shared across browser tabs → pass `{ syncTabs: true }` (4th arg). Channel defaults to persist `key` or `"h-state"`. Call `$destroy()` to stop.
 
 ## 6. Common mistakes (❌ → ✅)
 

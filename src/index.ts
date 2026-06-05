@@ -13,6 +13,31 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 	return proto === Object.prototype || proto === null;
 }
 
+// Structural equality for plain (already-serialized) snapshot values.
+function plainEquals(a: unknown, b: unknown): boolean {
+	if (a === b) return true;
+	if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
+	const aArr = Array.isArray(a);
+	const bArr = Array.isArray(b);
+	if (aArr !== bArr) return false;
+	if (aArr && bArr) {
+		if (a.length !== b.length) return false;
+		for (let i = 0; i < a.length; i++) {
+			if (!plainEquals(a[i], b[i])) return false;
+		}
+		return true;
+	}
+	const aObj = a as Record<string, unknown>;
+	const bObj = b as Record<string, unknown>;
+	const aKeys = Object.keys(aObj);
+	const bKeys = Object.keys(bObj);
+	if (aKeys.length !== bKeys.length) return false;
+	for (const key of aKeys) {
+		if (!Object.hasOwn(bObj, key) || !plainEquals(aObj[key], bObj[key])) return false;
+	}
+	return true;
+}
+
 function deepMerge<T extends Record<string, unknown>>(
 	base: T,
 	override: Partial<T>,
@@ -592,30 +617,69 @@ export function createStore<
 	const past: T[] = [];
 	const future: T[] = [];
 	let lastSnapshot: T = getPlainState();
-	let isTimeTraveling = false;
+	// Guards: skip history-recording / cross-tab broadcast while applying internal state writes.
+	let isInternalApply = false;
 
-	const restoreSnapshot = (snapshot: T) => {
-		isTimeTraveling = true;
+	const applySnapshot = (snapshot: T) => {
+		isInternalApply = true;
 		batch(() => {
+			const current = store as Record<string, unknown>;
+			const next = snapshot as Record<string, unknown>;
 			for (const key in initial) {
-				if (Object.hasOwn(initial, key)) {
-					(store as Record<string, unknown>)[key] = (snapshot as Record<string, unknown>)[key];
+				if (!Object.hasOwn(initial, key)) continue;
+				// Only write keys that actually changed: avoids replacing untouched
+				// subtrees and keeps notifications minimal (one per changed key).
+				if (!plainEquals(toPlain(current[key]), next[key])) {
+					current[key] = next[key];
 				}
 			}
 		});
-		isTimeTraveling = false;
+		isInternalApply = false;
 		lastSnapshot = getPlainState();
 	};
+	const restoreSnapshot = applySnapshot;
 
 	if (historyEnabled) {
 		signal.subscribe(() => {
-			if (isTimeTraveling) return;
+			if (isInternalApply) return;
 			past.push(lastSnapshot);
 			if (past.length > historyLimit) past.shift();
 			future.length = 0;
 			lastSnapshot = getPlainState();
 		});
 	}
+
+	// ----------------------------------------------------------------------
+	// Cross-tab sync — opt-in via storeOptions.syncTabs (BroadcastChannel)
+	// ----------------------------------------------------------------------
+	const syncOpt = storeOptions?.syncTabs;
+	const syncEnabled = syncOpt === true || (typeof syncOpt === "object" && (syncOpt.enabled ?? true));
+	const syncChannelName =
+		(typeof syncOpt === "object" && syncOpt.channel) ||
+		(persist.enabled ? persist.key : undefined) ||
+		"h-state";
+	let broadcastChannel: BroadcastChannel | null = null;
+
+	if (syncEnabled && typeof BroadcastChannel !== "undefined") {
+		broadcastChannel = new BroadcastChannel(syncChannelName);
+		broadcastChannel.onmessage = (event: MessageEvent) => {
+			const data = event.data as { __hs_sync?: boolean; state?: T } | null;
+			if (!data || data.__hs_sync !== true || !data.state) return;
+			applySnapshot(data.state);
+		};
+		signal.subscribe(() => {
+			if (isInternalApply || !broadcastChannel) return;
+			broadcastChannel.postMessage({ __hs_sync: true, state: getPlainState() });
+		});
+	}
+
+	(store as StoreType<T, M>).$destroy = () => {
+		if (broadcastChannel) {
+			broadcastChannel.onmessage = null;
+			broadcastChannel.close();
+			broadcastChannel = null;
+		}
+	};
 
 	(store as StoreType<T, M>).$undo = () => {
 		if (!historyEnabled || past.length === 0) return false;
@@ -713,5 +777,5 @@ export function createStore<
 }
 
 // Re-export types for convenience
-export type { PersistOptions, StoreType, MethodCreators, StoreOptions, HistoryOptions, HistoryState } from "./types";
+export type { PersistOptions, StoreType, MethodCreators, StoreOptions, HistoryOptions, HistoryState, SyncTabsOptions } from "./types";
 

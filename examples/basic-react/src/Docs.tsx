@@ -70,6 +70,7 @@ export function Docs({ onBack }: DocsProps) {
             <span className="docs-nav-label">Advanced</span>
             <a href="#subscriptions" className="docs-nav-link">Subscriptions</a>
             <a href="#time-travel" className="docs-nav-link">Time Travel</a>
+            <a href="#cross-tab" className="docs-nav-link">Cross-Tab Sync</a>
             <a href="#persistence" className="docs-nav-link">Persistence</a>
             <a href="#batch" className="docs-nav-link">Batch Updates</a>
             <a href="#typescript" className="docs-nav-link">TypeScript</a>
@@ -306,6 +307,37 @@ store.$clearHistory();`}</pre>
               <strong>💡 Tip:</strong> each committed change records one snapshot. Group multiple
               mutations with <code>batch(...)</code> so an action becomes a single undo step. A new
               change after an undo clears the redo stack (linear history).
+            </div>
+          </section>
+
+          {/* Cross-Tab Sync */}
+          <section id="cross-tab" className="docs-section">
+            <h2>Cross-Tab Sync</h2>
+            <p>
+              Keep state consistent across every open tab/window with one option — powered by the
+              browser's <code>BroadcastChannel</code>, no server required.
+            </p>
+            <div className="code-block">
+              <pre>{`const { useStore, store } = createStore(
+  { theme: 'dark', cart: [] },
+  {
+    setTheme: (s) => (t) => { s.theme = t; },
+    addToCart: (s) => (id) => { s.cart.push(id); },
+  },
+  undefined,             // persistOptions (3rd arg)
+  { syncTabs: true },    // 👈 sync across tabs (or { syncTabs: { channel: 'my-app' } })
+);
+
+// Change in tab A → instantly reflected in tab B, C…
+store.addToCart('sku-1');
+
+store.$destroy(); // close the channel when done`}</pre>
+            </div>
+            <div className="info-box">
+              <strong>💡 Tip:</strong> the channel name defaults to your persistence <code>key</code>
+              (or <code>"h-state"</code>). Remote updates are applied without re-broadcasting (no
+              feedback loops) and don't pollute undo history. Combine with persistence so a fresh
+              tab loads the last state, then stays live via sync. Safe no-op on SSR / unsupported browsers.
             </div>
           </section>
 

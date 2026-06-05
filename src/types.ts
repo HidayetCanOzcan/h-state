@@ -21,9 +21,23 @@ export type HistoryOptions = {
 	limit?: number;
 };
 
+export type SyncTabsOptions = {
+	enabled?: boolean;
+	/**
+	 * BroadcastChannel name. Tabs sharing the same name stay in sync.
+	 * Defaults to the persistence `key` if set, otherwise "h-state".
+	 */
+	channel?: string;
+};
+
 export interface StoreOptions {
 	/** Enable time-travel (undo/redo). Pass `true` or `{ limit }`. */
 	history?: boolean | HistoryOptions;
+	/**
+	 * Sync state across browser tabs/windows via BroadcastChannel.
+	 * Pass `true` or `{ channel }`. No-op where BroadcastChannel is unavailable (SSR/old browsers).
+	 */
+	syncTabs?: boolean | SyncTabsOptions;
 }
 
 export type StoreType<
@@ -67,6 +81,8 @@ export type StoreType<
 		$clearHistory: () => void;
 		/** Snapshot of history availability (canUndo/canRedo + stack sizes). */
 		$history: () => HistoryState;
+		/** Close the cross-tab BroadcastChannel (if any). Safe to call multiple times. */
+		$destroy: () => void;
 	};
 
 export type MethodCreators<
