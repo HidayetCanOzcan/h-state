@@ -39,3 +39,4 @@ coverage/
 .yarnrc.yml
 .npm/
 .npmrc
+.content

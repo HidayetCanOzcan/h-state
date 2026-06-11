@@ -92,6 +92,28 @@ export type StoreType<
 		$transaction: <R>(fn: () => R) => R;
 	};
 
+/**
+ * React hook returned by `createStore`. Two call signatures:
+ * - no args → the live store object, re-rendering on ANY change;
+ * - selector (+ optional equality) → the derived slice, re-rendering only when
+ *   that slice changes. The selector form returns the value itself (not the
+ *   stable store), which is required for correctness under the React Compiler:
+ *   the compiler memoises property reads against the stable store reference, so
+ *   in-place mutations are invisible to it unless surfaced through a selector.
+ */
+export type UseStore<
+	T extends Record<string, unknown>,
+	M extends Record<string, unknown>,
+> = {
+	<R>(selector: (state: StoreType<T, M>) => R, equalityFn?: (a: R, b: R) => boolean): R;
+	// No-arg overload kept LAST so `ReturnType<typeof useStore>` resolves to the
+	// store (TS picks the final overload for ReturnType), preserving the common
+	// `type Store = ReturnType<typeof useXStore>` pattern. Call resolution is
+	// unaffected: a zero-arg call can't match the selector overload (its selector
+	// is required) and falls through to this one.
+	(): StoreType<T, M>;
+};
+
 export type MethodCreators<
 	T extends Record<string, unknown>,
 	M extends Record<string, unknown>,

@@ -1,6 +1,6 @@
 import React from "react";
 import { STATE_ID } from "./types";
-import type { HistoryState, Listener, MethodCreators, MigrateFn, PersistOptions, ReactiveState, StoreOptions, StoreType } from "./types";
+import type { HistoryState, Listener, MethodCreators, MigrateFn, PersistOptions, ReactiveState, StoreOptions, StoreType, UseStore } from "./types";
 
 const VERSION_KEY = "__hs_v";
 const DATA_KEY = "__hs_d";
@@ -364,7 +364,7 @@ export function createStore<
 	persistOptions?: PersistOptions,
 	storeOptions?: StoreOptions,
 ): {
-	useStore: () => StoreType<T, M>;
+	useStore: UseStore<T, M>;
 	store: StoreType<T, M>;
 } {
 	// Parse persistence options with defaults
@@ -809,5 +809,5 @@ export function createStore<
 }
 
 // Re-export types for convenience
-export type { PersistOptions, StoreType, MethodCreators, StoreOptions, HistoryOptions, HistoryState, SyncTabsOptions } from "./types";
+export type { PersistOptions, StoreType, MethodCreators, StoreOptions, HistoryOptions, HistoryState, SyncTabsOptions, UseStore } from "./types";
 
