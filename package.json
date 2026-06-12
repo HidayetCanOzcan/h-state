@@ -1,6 +1,6 @@
 {
   "name": "h-state",
-  "version": "2.11.0",
+  "version": "2.11.1",
   "description": "Lightweight Proxy-free React state management. Direct mutations, tracked array methods, built-in undo/redo time travel, cross-tab sync, atomic transactions, and localStorage persistence. Zero dependencies, ~2KB, TypeScript-first.",
   "type": "module",
   "sideEffects": false,
@@ -67,7 +67,7 @@
     "zero-dependencies",
     "lightweight"
   ],
-  "author": "Hidayet Can \u00d6zcan <hidayetcan@gmail.com> (https://github.com/HidayetCanOzcan)",
+  "author": "Hidayet Can Özcan <hidayetcan@gmail.com> (https://github.com/HidayetCanOzcan)",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/HidayetCanOzcan/h-state/issues"
