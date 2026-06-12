@@ -1,6 +1,6 @@
 {
   "name": "h-state",
-  "version": "2.10.0",
+  "version": "2.11.0",
   "description": "Lightweight Proxy-free React state management. Direct mutations, tracked array methods, built-in undo/redo time travel, cross-tab sync, atomic transactions, and localStorage persistence. Zero dependencies, ~2KB, TypeScript-first.",
   "type": "module",
   "sideEffects": false,
@@ -29,7 +29,11 @@
     "publish:minor": "npm version minor && npm publish",
     "publish:major": "npm version major && npm publish",
     "release:beta": "node scripts/release-beta.js",
-    "publish:beta": "npm run test && npm run build && npm publish --tag beta"
+    "publish:beta": "npm run test && npm run build && npm publish --tag beta",
+    "release": "node scripts/release.js patch",
+    "release:minor": "node scripts/release.js minor",
+    "release:major": "node scripts/release.js major",
+    "release:dry": "node scripts/release.js patch --dry-run"
   },
   "repository": {
     "type": "git",
@@ -63,7 +67,7 @@
     "zero-dependencies",
     "lightweight"
   ],
-  "author": "Hidayet Can Özcan <hidayetcan@gmail.com> (https://github.com/HidayetCanOzcan)",
+  "author": "Hidayet Can \u00d6zcan <hidayetcan@gmail.com> (https://github.com/HidayetCanOzcan)",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/HidayetCanOzcan/h-state/issues"
@@ -74,6 +78,10 @@
     "typescript": ">=4.5.0"
   },
   "devDependencies": {
+    "@babel/core": "^7.29.7",
+    "@babel/preset-env": "^7.29.7",
+    "@babel/preset-react": "^7.29.7",
+    "@babel/preset-typescript": "^7.29.7",
     "@testing-library/jest-dom": "latest",
     "@testing-library/react": "latest",
     "@types/jest": "latest",
@@ -82,6 +90,7 @@
     "@typescript-eslint/eslint-plugin": "latest",
     "@typescript-eslint/parser": "latest",
     "babel-jest": "latest",
+    "babel-plugin-react-compiler": "^1.0.0",
     "eslint": "latest",
     "eslint-config-prettier": "latest",
     "eslint-plugin-react": "latest",

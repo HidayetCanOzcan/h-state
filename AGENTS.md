@@ -208,16 +208,22 @@ store.todos.splice(0, 1, newTodo);
 store.todos = [];
 ```
 
-**Selector returning the same array reference won't re-render** — read the array in render
-(no selector) or return a derived value with a custom `equalityFn`.
+**Container identity is fresh per change (v2.11+)** — after a mutation, the next read of the
+mutated container (and its ancestors, and the no-selector `useStore()` result) returns a NEW
+reference; untouched containers keep their identity. This makes h-state correct under the React
+Compiler (`reactCompiler: true`) and under `useMemo` / `React.memo` / effect deps — do NOT add
+`'use no memo'` directives. Selectors returning arrays/objects re-render correctly. Opt out per
+store with `{ identity: 'stable' }` (4th arg) only if you need permanently stable references and
+don't use the React Compiler.
 
 ```ts
-// ❌ Risky: same array ref after push → may not re-render
+// ✅ Fine in v2.11+: fresh ref after push → re-renders
 const todos = useStore((s) => s.todos);
-// ✅ Either read without a selector, or select a derived value
-const store = useStore();           // store.todos in render
-const count = useStore((s) => s.todos.length);
 ```
+
+**Captured container references are snapshots** — after a later update, re-read from the store
+(`store.todos`) instead of holding an old array/object across updates. Mutations through a stale
+array reference still land on the canonical state, but reads may be stale.
 
 **`$getState()` is a snapshot, not live** — call it again after changes; do not cache and expect it to mutate.
 

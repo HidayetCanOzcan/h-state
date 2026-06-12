@@ -55,7 +55,17 @@ function View() {
 
 For derived/object selectors pass an equality fn:
 `useStore((s) => s.todos.filter(t => !t.done), (a, b) => a.length === b.length && a.every((t,i)=>t===b[i]))`.
-Avoid selecting a whole array that is mutated in place — read it without a selector instead.
+Selecting a whole array/object is fine in v2.11+: mutated containers get a fresh reference on the
+next read, so the selector sees every change.
+
+## React Compiler (v2.11+)
+
+h-state is safe under `reactCompiler: true` — do NOT add `'use no memo'` directives. After a
+mutation, the mutated container, its ancestors, and the no-selector `useStore()` result all return
+NEW references on next read, so compiler/`useMemo`/`React.memo`/effect-dep comparisons (Object.is)
+observe every change; untouched containers keep their identity. Captured references are snapshots —
+re-read from the store after updates. Opt out per store with `{ identity: 'stable' }` (4th arg)
+only when the compiler is off and permanently stable references are required.
 
 ## Outside React
 

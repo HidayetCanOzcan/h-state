@@ -4,6 +4,19 @@ export default {
   testEnvironment: 'jsdom',
   roots: ['<rootDir>/src'],
   transform: {
+    // The real-React-Compiler e2e suite is compiled with babel-plugin-react-compiler
+    // so memoization behaves exactly as in a production app with reactCompiler: true.
+    'react-compiler-e2e\\.test\\.tsx$': [
+      'babel-jest',
+      {
+        presets: [
+          ['@babel/preset-env', { targets: { node: 'current' } }],
+          ['@babel/preset-react', { runtime: 'automatic' }],
+          '@babel/preset-typescript'
+        ],
+        plugins: [['babel-plugin-react-compiler', { target: '19' }]]
+      }
+    ],
     '^.+\\.tsx?$': [
       'ts-jest',
       {

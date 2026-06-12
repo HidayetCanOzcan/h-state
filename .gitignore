@@ -39,4 +39,4 @@ coverage/
 .yarnrc.yml
 .npm/
 .npmrc
-.content
+.content*.tgz

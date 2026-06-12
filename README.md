@@ -22,6 +22,7 @@ A lightweight and intuitive state management library for React with deep nested 
 
 Everything below ships in the box — no plugins, no middleware, no providers.
 
+- ⚛️ **React Compiler ready** — fresh container identity per change keeps compiler/`useMemo`/`React.memo` memoization correct with direct mutations. No `'use no memo'` needed. Opt out with `{ identity: 'stable' }`.
 - ✨ **Direct-mutation reactivity** — write `store.count++`, `store.user.name = 'x'`, `store.items.push(y)` and components re-render automatically. No reducers, no actions, no `set()`.
 - 🧬 **Deep nested + array reactivity** — unlimited object depth, no Proxy overhead. Tracked array methods (`push / pop / shift / unshift / splice / sort / reverse / fill / copyWithin`) re-render and persist automatically; `Array.isArray` stays `true`.
 - 🧩 **Fine-grained selectors** — `useStore(selector, equalityFn?)` re-renders only when the selected slice changes. Built on `useSyncExternalStore`, safe with React 18 concurrent features.
@@ -555,6 +556,34 @@ store.todos.splice(0, 1, newTodo);         // ✅ use this instead
 store.todos = [newTodo, ...store.todos];   // ✅ or reassign
 ```
 
+## React Compiler Compatibility (v2.11+)
+
+h-state is safe under the React Compiler (`reactCompiler: true` in Next.js / Babel) — **no `'use no memo'` directives needed**.
+
+The compiler memoizes JSX and expressions keyed on the values they read, compared with `Object.is`. A store that mutates containers in place behind stable references makes every change invisible to those comparisons — lists silently stop updating, components stop mounting. h-state solves this with **fresh container identity**: after a mutation, the next read of the mutated container — and of every ancestor up to the no-selector `useStore()` result — returns a new reference, while untouched containers keep their identity.
+
+```typescript
+const before = store.todos;
+store.todos.push(todo);     // in-place mutation, as always
+store.todos !== before;     // ✅ next read: fresh identity → memo/deps invalidate
+store.user === store.user;  // ✅ untouched containers stay referentially stable
+```
+
+What this means in practice:
+
+- `useStore()` (no selector) returns a new store facade after every update, so compiler-memoized JSX recomputes.
+- `useMemo` / `React.memo` / `useEffect` dependencies on store containers (`[store.todos]`) now correctly observe changes.
+- Mutating through a captured reference still lands on the canonical state — array methods always operate on the latest generation.
+- `$update()` (after untracked writes like `arr[0] = x`) refreshes **all** container identities.
+
+If you relied on permanently stable references (and don't use the React Compiler), opt out per store:
+
+```typescript
+createStore(initial, methods, undefined, { identity: 'stable' });
+```
+
+> Captured references are snapshots: after a later mutation, re-read from the store (`store.todos`) instead of holding the old array across updates.
+
 ## Selector-Based Subscriptions
 
 By default `useStore()` re-renders on any state change. For fine-grained subscriptions pass a selector:
@@ -812,6 +841,10 @@ store.email = 'x';    // Re-render 3
 ```
 
 ## Migration Guide
+
+### Upgrading to v2.11.0
+
+**Drop-in for apps; identity semantics improved.** Mutated containers (and the no-selector `useStore()` result) now get a fresh reference on the next read, which makes h-state correct under the React Compiler and under `useMemo`/`React.memo`/effect deps. Remove any `'use no memo'` workarounds. If a store must keep permanently stable references, pass `{ identity: 'stable' }` as the 4th `createStore` argument. Also fixed: nested mutations are now included in localStorage persistence, and `$reset()` restores initial state even after nested mutations.
 
 ### From v1.x to v2.x
 

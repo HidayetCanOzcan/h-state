@@ -38,6 +38,15 @@ export interface StoreOptions {
 	 * Pass `true` or `{ channel }`. No-op where BroadcastChannel is unavailable (SSR/old browsers).
 	 */
 	syncTabs?: boolean | SyncTabsOptions;
+	/**
+	 * Container identity semantics. Default `'fresh'`: after a mutation, the next
+	 * read of the mutated container (and its ancestors, plus the no-selector
+	 * `useStore()` result) returns a NEW reference, so Object.is-based memoization
+	 * (React Compiler, useMemo, React.memo, effect deps) sees every change.
+	 * `'stable'` restores the pre-2.11 behavior of permanently stable references — only use
+	 * it when `reactCompiler` is off and you rely on reference stability.
+	 */
+	identity?: "fresh" | "stable";
 }
 
 export type StoreType<

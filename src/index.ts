@@ -38,6 +38,24 @@ function plainEquals(a: unknown, b: unknown): boolean {
 	return true;
 }
 
+// Deep-clone plain data (objects/arrays). Dates are copied; anything else
+// (class instances, functions) is kept by reference. Used to detach the
+// store's canonical state from caller-owned objects: reactivity writes back
+// into the canonical raw graph, which must never alias the `initial` the
+// caller passed in (otherwise $reset would compare against mutated data).
+function deepClonePlain<T>(value: T): T {
+	if (value === null || typeof value !== "object") return value;
+	if (value instanceof Date) return new Date(value.getTime()) as unknown as T;
+	if (value instanceof RegExp) return value;
+	if (Array.isArray(value)) return value.map((el) => deepClonePlain(el)) as unknown as T;
+	if (!isPlainObject(value)) return value;
+	const out: Record<string, unknown> = {};
+	for (const key of Object.keys(value)) {
+		out[key] = deepClonePlain((value as Record<string, unknown>)[key]);
+	}
+	return out as T;
+}
+
 function deepMerge<T extends Record<string, unknown>>(
 	base: T,
 	override: Partial<T>,
@@ -127,25 +145,81 @@ function markUpdated<T extends Record<string, unknown>>(
 	}
 }
 
-const reactiveCache = new WeakMap<object, object>();
-const reactiveObjects = new WeakSet<object>();
-const trackedArrays = new WeakSet<unknown[]>();
+// ============================================================================
+// Reactivity core — write-back wrappers + fresh container identity
+// ============================================================================
+//
+// The canonical state lives in the raw graph (plain objects holding plain
+// values, arrays holding wrapped elements). Object wrappers are pure VIEWS:
+// every get/set goes through to the raw object, so any number of coexisting
+// wrappers for the same raw stay consistent.
+//
+// Identity contract (the React Compiler / memoization contract):
+// after a mutation, the next read of the mutated container — and of every
+// ancestor container up to the store root — returns a NEW reference, while
+// untouched containers keep their identity. The React Compiler (and useMemo /
+// React.memo / useEffect deps) compare dependency values with Object.is, so
+// in-place mutation behind a stable reference is invisible to them. Fresh
+// identity per change makes h-state stores safe under `reactCompiler: true`
+// without `'use no memo'` directives.
+//
+// Objects get a freshly built wrapper (cheap: accessors only). Arrays cannot
+// be wrapped without Proxy, so each change starts a new "generation": a
+// shallow clone that becomes canonical. All generations of an array share an
+// ArrayCell; mutation methods always operate on the latest generation, so
+// mutating through a captured stale reference still lands canonically.
 
-function wrapArrayElements(
-	arr: unknown[],
-	rootSignal: Signal<number>,
-	rootState: ReactiveState<Record<string, unknown>>,
-): void {
-	for (let i = 0; i < arr.length; i++) {
-		const el = arr[i];
-		if (el === null || typeof el !== "object") continue;
-		if (el instanceof Date || el instanceof RegExp) continue;
-		if (Array.isArray(el)) {
-			trackArray(el as unknown[], rootSignal, rootState);
-		} else if (!reactiveObjects.has(el as object)) {
-			// Newly added (raw) element — wrap it so nested mutations propagate.
-			arr[i] = makeReactive(el, rootSignal, rootState);
+class ArrayCell {
+	current: unknown[];
+	dirty = false;
+	epoch: number;
+	constructor(current: unknown[], epoch: number) {
+		this.current = current;
+		this.epoch = epoch;
+	}
+}
+
+type ParentNode = object | ArrayCell | null;
+
+// wrapper-view bookkeeping (raw object → its current wrapper, and back)
+const reactiveCache = new WeakMap<object, { wrapper: object; epoch: number }>();
+const reactiveObjects = new WeakSet<object>();
+const wrapperRaw = new WeakMap<object, object>();
+// every generation of a tracked array → its shared cell
+const arrayCells = new WeakMap<unknown[], ArrayCell>();
+// child container (raw object or ArrayCell) → parent container, for dirty propagation
+const parentOf = new WeakMap<object, ParentNode>();
+// per-store: epoch (bumped by $update to force-refresh all identities) and identity mode
+const rootEpoch = new WeakMap<object, number>();
+const rootStable = new WeakSet<object>();
+
+function epochOf(rootState: object): number {
+	return rootEpoch.get(rootState) ?? 0;
+}
+
+// Replace a wrapper with its raw object before storing it into the canonical
+// graph, so raws never nest wrappers (a wrapper assigned from elsewhere in
+// the store, e.g. `store.a = store.b.user`, stays a live alias of the raw).
+function unwrapValue<V>(value: V): V {
+	if (value !== null && typeof value === "object" && reactiveObjects.has(value as object)) {
+		return (wrapperRaw.get(value as object) ?? value) as V;
+	}
+	return value;
+}
+
+// Invalidate the identity of a mutated container and every ancestor: deleted
+// cache entries rebuild object wrappers on next read; dirty cells clone their
+// array on next read. No-op for `identity: 'stable'` stores.
+function markDirty(node: object | ArrayCell, rootState: object): void {
+	if (rootStable.has(rootState)) return;
+	let n: ParentNode = node;
+	while (n) {
+		if (n instanceof ArrayCell) {
+			n.dirty = true;
+		} else {
+			reactiveCache.delete(n);
 		}
+		n = parentOf.get(n as object) ?? null;
 	}
 }
 
@@ -161,22 +235,24 @@ const ARRAY_MUTATION_METHODS = [
 	"copyWithin",
 ] as const;
 
-function trackArray(
+function patchArrayMethods(
 	arr: unknown[],
+	cell: ArrayCell,
 	rootSignal: Signal<number>,
 	rootState: ReactiveState<Record<string, unknown>>,
-): unknown[] {
-	if (trackedArrays.has(arr)) return arr;
-	trackedArrays.add(arr);
-
+): void {
 	for (const method of ARRAY_MUTATION_METHODS) {
 		const original = Array.prototype[method] as (...a: unknown[]) => unknown;
 		Object.defineProperty(arr, method, {
-			value: function (this: unknown[], ...args: unknown[]) {
-				const result = original.apply(this, args);
+			value: function (...args: unknown[]) {
+				// Mutate the latest generation, whichever generation was captured —
+				// stale references must not fork the canonical state.
+				const target = cell.current;
+				const result = original.apply(target, args);
 				// Wrap any newly inserted (raw) object elements so their nested
 				// mutations stay reactive — push/unshift/splice/fill add fresh items.
-				wrapArrayElements(this, rootSignal, rootState);
+				wrapArrayElements(target, cell, rootSignal, rootState);
+				markDirty(cell, rootState);
 				markUpdated(rootState, rootSignal);
 				return result;
 			},
@@ -185,19 +261,88 @@ function trackArray(
 			configurable: true,
 		});
 	}
+}
 
-	// Eagerly wrap object/array elements so nested mutations propagate.
-	wrapArrayElements(arr, rootSignal, rootState);
+// Wrap raw object elements into reactive views, refresh elements whose own
+// identity was invalidated, and surface the latest generation of nested arrays.
+function wrapArrayElements(
+	arr: unknown[],
+	cell: ArrayCell,
+	rootSignal: Signal<number>,
+	rootState: ReactiveState<Record<string, unknown>>,
+): void {
+	for (let i = 0; i < arr.length; i++) {
+		const el = arr[i];
+		if (el === null || typeof el !== "object") continue;
+		if (el instanceof Date || el instanceof RegExp) continue;
+		if (Array.isArray(el)) {
+			arr[i] = resolveArray(el as unknown[], rootSignal, rootState, cell);
+		} else if (reactiveObjects.has(el as object)) {
+			// Existing wrapper element: rebuild it if its raw was invalidated so the
+			// element's identity is fresh inside the fresh generation.
+			const raw = wrapperRaw.get(el as object);
+			if (raw) {
+				const entry = reactiveCache.get(raw);
+				if (!entry || entry.wrapper !== el) {
+					arr[i] = makeReactive(raw, rootSignal, rootState, cell);
+				} else {
+					parentOf.set(raw, cell);
+				}
+			}
+		} else {
+			// Newly added (raw) element — wrap it so nested mutations propagate.
+			arr[i] = makeReactive(el, rootSignal, rootState, cell);
+		}
+	}
+}
 
-	return arr;
+function resolveArray(
+	arr: unknown[],
+	rootSignal: Signal<number>,
+	rootState: ReactiveState<Record<string, unknown>>,
+	parent: ParentNode,
+): unknown[] {
+	let cell = arrayCells.get(arr);
+	if (!cell) {
+		cell = new ArrayCell(arr, epochOf(rootState));
+		arrayCells.set(arr, cell);
+		patchArrayMethods(arr, cell, rootSignal, rootState);
+		wrapArrayElements(arr, cell, rootSignal, rootState);
+	}
+	parentOf.set(cell, parent);
+	const epoch = epochOf(rootState);
+	if (!rootStable.has(rootState) && (cell.dirty || cell.epoch !== epoch)) {
+		// Start a new generation: fresh identity for memo/dep comparisons while
+		// the cell keeps routing mutations to the latest generation.
+		const next = cell.current.slice();
+		arrayCells.set(next, cell);
+		patchArrayMethods(next, cell, rootSignal, rootState);
+		cell.current = next;
+		cell.dirty = false;
+		cell.epoch = epoch;
+		wrapArrayElements(next, cell, rootSignal, rootState);
+	}
+	return cell.current;
+}
+
+function resolveValue(
+	value: unknown,
+	rootSignal: Signal<number>,
+	rootState: ReactiveState<Record<string, unknown>>,
+	parent: ParentNode,
+): unknown {
+	if (value === null || typeof value !== "object") return value;
+	if (value instanceof Date || value instanceof RegExp) return value;
+	if (Array.isArray(value)) return resolveArray(value as unknown[], rootSignal, rootState, parent);
+	return makeReactive(value, rootSignal, rootState, parent);
 }
 
 function makeReactive<T>(
 	obj: T,
 	rootSignal: Signal<number>,
-	rootState: ReactiveState<Record<string, unknown>>
+	rootState: ReactiveState<Record<string, unknown>>,
+	parent: ParentNode = null,
 ): T {
-
 	if (obj === null || typeof obj !== "object") {
 		return obj;
 	}
@@ -207,72 +352,49 @@ function makeReactive<T>(
 	}
 
 	if (Array.isArray(obj)) {
-		return trackArray(obj as unknown[], rootSignal, rootState) as unknown as T;
+		return resolveArray(obj as unknown[], rootSignal, rootState, parent) as unknown as T;
 	}
 
-	const cached = reactiveCache.get(obj as object);
-	if (cached) {
-		return cached as T;
+	// A wrapper passed back in (e.g. re-assigned within the store): operate on its raw.
+	const raw = (reactiveObjects.has(obj as object) ? wrapperRaw.get(obj as object) ?? obj : obj) as Record<string, unknown>;
+
+	parentOf.set(raw, parent);
+
+	const epoch = epochOf(rootState);
+	const cached = reactiveCache.get(raw);
+	if (cached && (rootStable.has(rootState) || cached.epoch === epoch)) {
+		return cached.wrapper as T;
 	}
 
 	const reactiveObj = {} as T;
 
-	for (const key in obj) {
-		if (Object.hasOwn(obj, key)) {
-			const value = obj[key];
-
-			const isNestedObject =
-				value !== null &&
-				typeof value === "object" &&
-				!(value instanceof Date) &&
-				!(value instanceof RegExp);
-
-			if (isNestedObject) {
-
-				let currentValue = value;
-
-				Object.defineProperty(reactiveObj, key, {
-					get() {
-
-						return makeReactive(currentValue, rootSignal, rootState);
-					},
-					set(newValue) {
-						if (currentValue === newValue) {
-							return;
-						}
-
-						if (currentValue && typeof currentValue === "object") {
-							reactiveCache.delete(currentValue as object);
-						}
-						currentValue = newValue;
-						markUpdated(rootState, rootSignal);
-					},
-					enumerable: true,
-					configurable: true,
-				});
-			} else {
-
-				let currentValue = value;
-
-				Object.defineProperty(reactiveObj, key, {
-					get() {
-						return currentValue;
-					},
-					set(newValue) {
-						if (currentValue === newValue) {
-							return;
-						}
-						currentValue = newValue;
-						markUpdated(rootState, rootSignal);
-					},
-					enumerable: true,
-					configurable: true,
-				});
-			}
+	for (const key in raw) {
+		if (Object.hasOwn(raw, key)) {
+			Object.defineProperty(reactiveObj, key, {
+				get() {
+					return resolveValue(raw[key], rootSignal, rootState, raw);
+				},
+				set(newValue) {
+					const unwrapped = unwrapValue(newValue);
+					const oldValue = raw[key];
+					if (oldValue === unwrapped) {
+						return;
+					}
+					if (oldValue && typeof oldValue === "object") {
+						reactiveCache.delete(oldValue as object);
+					}
+					raw[key] = unwrapped;
+					markDirty(raw, rootState);
+					markUpdated(rootState, rootSignal);
+				},
+				enumerable: true,
+				configurable: true,
+			});
 		}
 	}
 
-	reactiveCache.set(obj as object, reactiveObj as object);
+	reactiveCache.set(raw, { wrapper: reactiveObj as object, epoch });
+	wrapperRaw.set(reactiveObj as object, raw);
 	reactiveObjects.add(reactiveObj as object);
 
 	return reactiveObj;
@@ -402,8 +524,16 @@ export function createStore<
 		}
 	}
 
-	const internalState = { ...mergedInitial, [STATE_ID]: 0 } as ReactiveState<T>;
+	// Canonical state is detached from caller-owned objects: reactivity writes
+	// back into this raw graph, which must never alias `initial`.
+	const internalState = { ...deepClonePlain(mergedInitial), [STATE_ID]: 0 } as ReactiveState<T>;
+	// Pristine copy for $reset (independent of any later mutations).
+	const pristineInitial = deepClonePlain(initial);
 	const signal = new Signal<number>(0);
+
+	if (storeOptions?.identity === "stable") {
+		rootStable.add(internalState);
+	}
 
 	const store = {} as StoreType<T, M>;
 
@@ -430,13 +560,8 @@ export function createStore<
 		}
 
 		try {
-			// Extract only state properties (exclude methods and symbols)
-			const stateToSave: Record<string, unknown> = {};
-			for (const key in initial) {
-				if (Object.hasOwn(initial, key)) {
-					stateToSave[key] = (internalState as Record<string, unknown>)[key];
-				}
-			}
+			// Plain snapshot read THROUGH the reactive layer (state keys only).
+			const stateToSave = getPlainState();
 
 			const envelope: Record<string, unknown> = {
 				[VERSION_KEY]: persist.version,
@@ -474,57 +599,40 @@ export function createStore<
 
 	for (const key in initial) {
 		if (Object.hasOwn(initial, key)) {
-			const initialValue = (internalState as Record<string, unknown>)[key];
-			const isObject =
-				initialValue !== null &&
-				typeof initialValue === "object" &&
-				!(initialValue instanceof Date) &&
-				!(initialValue instanceof RegExp);
-
-			if (isObject) {
-
-				Object.defineProperty(store, key, {
-					get() {
-						const value = (internalState as Record<string, unknown>)[key];
-						return makeReactive(value, signal, internalState);
-					},
-					set(value) {
-						const oldValue = (internalState as Record<string, unknown>)[key];
-						if (oldValue === value) {
-							return;
-						}
-
-						if (oldValue && typeof oldValue === "object") {
-							reactiveCache.delete(oldValue as object);
-						}
-						(internalState as Record<string, unknown>)[key] = value;
-						markUpdated(internalState, signal);
-					},
-					enumerable: true,
-					configurable: true,
-				});
-			} else {
-
-				Object.defineProperty(store, key, {
-					get() {
-						return (internalState as Record<string, unknown>)[key];
-					},
-					set(value) {
-						const oldValue = (internalState as Record<string, unknown>)[key];
-						if (oldValue === value) {
-							return;
-						}
-						(internalState as Record<string, unknown>)[key] = value;
-						markUpdated(internalState, signal);
-					},
-					enumerable: true,
-					configurable: true,
-				});
-			}
+			Object.defineProperty(store, key, {
+				get() {
+					return resolveValue(
+						(internalState as Record<string, unknown>)[key],
+						signal,
+						internalState,
+						null,
+					);
+				},
+				set(value) {
+					const unwrapped = unwrapValue(value);
+					const oldValue = (internalState as Record<string, unknown>)[key];
+					if (oldValue === unwrapped) {
+						return;
+					}
+					if (oldValue && typeof oldValue === "object") {
+						reactiveCache.delete(oldValue as object);
+					}
+					(internalState as Record<string, unknown>)[key] = unwrapped;
+					markUpdated(internalState, signal);
+				},
+				enumerable: true,
+				configurable: true,
+			});
 		}
 	}
 
 	(store as StoreType<T, M>).$update = () => {
+		// Manual notification (used after untracked writes like index assignment):
+		// we cannot know WHICH container changed, so advance the store epoch to
+		// refresh every container identity on next read.
+		if (!rootStable.has(internalState)) {
+			rootEpoch.set(internalState, epochOf(internalState) + 1);
+		}
 		markUpdated(internalState, signal);
 	};
 
@@ -554,9 +662,8 @@ export function createStore<
 		}
 	};
 
-	// Deep-clone a value into plain data, reading THROUGH the reactive layer.
-	// Nested mutations live in the reactive wrappers (closures), not on the raw
-	// internalState, so we must traverse via the reactive accessors.
+	// Deep-clone a value into plain data, reading THROUGH the reactive layer
+	// (wrapper views and array generations).
 	const toPlain = (value: unknown): unknown => {
 		if (value === null || typeof value !== "object") return value;
 		if (value instanceof Date || value instanceof RegExp) return value;
@@ -745,7 +852,11 @@ export function createStore<
 		batch(() => {
 			for (const key in initial) {
 				if (Object.hasOwn(initial, key)) {
-					(store as Record<string, unknown>)[key] = (initial as Record<string, unknown>)[key];
+					// Fresh clone per reset: the canonical graph mutates in place, so
+					// reusing one shared initial object would corrupt the pristine copy.
+					(store as Record<string, unknown>)[key] = deepClonePlain(
+						(pristineInitial as Record<string, unknown>)[key],
+					);
 				}
 			}
 		});
@@ -770,6 +881,23 @@ export function createStore<
 
 	const subscribeToSignal = (cb: () => void): (() => void) => signal.subscribe(cb);
 
+	// No-selector facade: a transparent identity layer over the live store that
+	// is replaced on every update. Memoization (React Compiler, useMemo, deps)
+	// compares with Object.is, so handing back the same store reference forever
+	// would pin every dependent memo — the facade gives each update a fresh
+	// root identity while all reads/writes still hit the real store.
+	let facade: StoreType<T, M> = store;
+	let facadeUid = -1;
+	const getFacade = (): StoreType<T, M> => {
+		if (rootStable.has(internalState) || typeof Proxy === "undefined") return store;
+		const uid = signal.get();
+		if (uid !== facadeUid) {
+			facadeUid = uid;
+			facade = new Proxy(store as object, {}) as StoreType<T, M>;
+		}
+		return facade;
+	};
+
 	function useStore(): StoreType<T, M>;
 	function useStore<R>(
 		selector: (s: StoreType<T, M>) => R,
@@ -782,11 +910,11 @@ export function createStore<
 		const cacheRef = React.useRef<{ uid: number; value: R } | null>(null);
 
 		// A single subscription drives re-renders. With NO selector the reactive
-		// value is the stable `store` reference itself, which cannot double as the
-		// change signal — useSyncExternalStore bails out on Object.is-equal
-		// snapshots, so the component would never re-render. Instead we snapshot
-		// the version `uid` (which advances on every update) and hand back the
-		// live `store`. With a selector we snapshot the memoised selected slice.
+		// value is the store itself, which cannot double as the change signal —
+		// useSyncExternalStore bails out on Object.is-equal snapshots, so the
+		// component would never re-render. Instead we snapshot the version `uid`
+		// (which advances on every update) and hand back the per-update store
+		// facade. With a selector we snapshot the memoised selected slice.
 		const getSnapshot = (): R | number => {
 			const uid = signal.get();
 			if (!selector) return uid;
@@ -802,7 +930,7 @@ export function createStore<
 		};
 
 		const snapshot = React.useSyncExternalStore(subscribeToSignal, getSnapshot, getSnapshot);
-		return selector ? (snapshot as R) : store;
+		return selector ? (snapshot as R) : getFacade();
 	}
 
 	return { useStore, store };
@@ -810,4 +938,3 @@ export function createStore<
 
 // Re-export types for convenience
 export type { PersistOptions, StoreType, MethodCreators, StoreOptions, HistoryOptions, HistoryState, SyncTabsOptions, UseStore } from "./types";
-

@@ -16,7 +16,9 @@ Key facts for assistants:
 - Atomic transactions: `store.$transaction(fn)` commits all mutations or rolls back if `fn` throws.
 - Methods are creators: `(store) => (args) => void`.
 - Tracked array methods: push, pop, shift, unshift, splice, sort, reverse, fill, copyWithin.
-- NOT tracked: direct index assignment (`arr[0]=x`) and `arr.length=n` — use splice or reassign.
+- NOT tracked: direct index assignment (`arr[0]=x`) and `arr.length=n` — use splice or reassign (or call `store.$update()` after).
+- React Compiler safe (v2.11+): mutated containers and the no-selector `useStore()` result get a FRESH reference on next read, so compiler/useMemo/React.memo/effect deps see every change. No 'use no memo' directives needed. Opt out per store with `{ identity: 'stable' }` (4th arg).
+- Captured container references are snapshots: re-read from the store after updates instead of holding old arrays/objects.
 
 ## Docs
 
