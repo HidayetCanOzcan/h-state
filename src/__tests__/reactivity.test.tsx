@@ -19,6 +19,16 @@ type Methods = {
 	replaceTodos: (t: string[]) => void;
 };
 
+type FileState = {
+	files: File[];
+	selected: { file: File | null };
+};
+
+type FileMethods = {
+	addFile: (file: File) => void;
+	setSelectedFile: (file: File) => void;
+};
+
 function makeStore() {
 	return createStore<State, Methods>(
 		{ count: 0, user: { name: "" }, todos: [] },
@@ -37,6 +47,20 @@ function makeStore() {
 			},
 			replaceTodos: (store) => (t: string[]) => {
 				store.todos = t;
+			},
+		},
+	);
+}
+
+function makeFileStore() {
+	return createStore<FileState, FileMethods>(
+		{ files: [], selected: { file: null } },
+		{
+			addFile: (store) => (file: File) => {
+				store.files.push(file);
+			},
+			setSelectedFile: (store) => (file: File) => {
+				store.selected.file = file;
 			},
 		},
 	);
@@ -144,5 +168,20 @@ describe("h-state no-selector reactivity (VVS consumption pattern)", () => {
 		expect(screen.getByTestId("display")).toHaveTextContent("0");
 		fireEvent.click(screen.getByText("inc"));
 		expect(screen.getByTestId("display")).toHaveTextContent("1");
+	});
+
+	it("keeps File instances atomic inside arrays and nested objects", () => {
+		const { store } = makeFileStore();
+		const file = new File(["hello"], "hello.txt", { type: "text/plain" });
+
+		store.addFile(file);
+		store.setSelectedFile(file);
+
+		expect(store.files[0]).toBe(file);
+		expect(store.files[0].name).toBe("hello.txt");
+		expect(store.files[0].type.startsWith("text/plain")).toBe(true);
+		expect(store.files[0].size).toBe(5);
+		expect(store.selected.file).toBe(file);
+		expect(store.selected.file?.name).toBe("hello.txt");
 	});
 });

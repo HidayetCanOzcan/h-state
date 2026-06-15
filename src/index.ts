@@ -275,6 +275,7 @@ function wrapArrayElements(
 		const el = arr[i];
 		if (el === null || typeof el !== "object") continue;
 		if (el instanceof Date || el instanceof RegExp) continue;
+		if (!Array.isArray(el) && !isPlainObject(el)) continue;
 		if (Array.isArray(el)) {
 			arr[i] = resolveArray(el as unknown[], rootSignal, rootState, cell);
 		} else if (reactiveObjects.has(el as object)) {
@@ -334,6 +335,7 @@ function resolveValue(
 	if (value === null || typeof value !== "object") return value;
 	if (value instanceof Date || value instanceof RegExp) return value;
 	if (Array.isArray(value)) return resolveArray(value as unknown[], rootSignal, rootState, parent);
+	if (!isPlainObject(value)) return value;
 	return makeReactive(value, rootSignal, rootState, parent);
 }
 
@@ -353,6 +355,10 @@ function makeReactive<T>(
 
 	if (Array.isArray(obj)) {
 		return resolveArray(obj as unknown[], rootSignal, rootState, parent) as unknown as T;
+	}
+
+	if (!isPlainObject(obj)) {
+		return obj;
 	}
 
 	// A wrapper passed back in (e.g. re-assigned within the store): operate on its raw.
