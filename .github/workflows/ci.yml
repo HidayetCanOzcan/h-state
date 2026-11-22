@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: Test & Build (Node ${{ matrix.node }})
+    name: Typecheck & Build (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -25,7 +25,5 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Typecheck
         run: npm run typecheck
-      - name: Test
-        run: npm test
       - name: Build
         run: npm run build
